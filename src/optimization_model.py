@@ -3,7 +3,6 @@ from visualizations.map_incidents_and_docks import create_map
 from pathlib import Path
 import webbrowser
 
-_max_dock_coverage_capacity = 1000
 _TIME_LIMIT_SECONDS = 300 # 300 seconds = 5 minutes time limit for the solver
 
 def _configure_solver(model): 
@@ -26,7 +25,7 @@ def _coverage_weight(dock_distance_sum, dock_locations_quantity):
     max_tiebreak = max(dock_distance_sum.values(), default=0) * dock_locations_quantity
     return max_tiebreak + 1
 
-def _build_base_model(docks, incidents, dock_locations_quantity, incident_to_docks, dock_to_incidents):
+def _build_base_model(docks, incidents, dock_locations_quantity, incident_to_docks, dock_to_incidents, max_dock_coverage_capacity):
     model = gp.Model("maximize_incidents_covered")
     _configure_solver(model)
 
@@ -43,15 +42,15 @@ def _build_base_model(docks, incidents, dock_locations_quantity, incident_to_doc
     for d in docks:
         coverable_incidents = dock_to_incidents[d]
         if coverable_incidents:
-            model.addConstr(gp.quicksum(y[i] for i in coverable_incidents) <= _max_dock_coverage_capacity) # The number of incidents covered by a dock must be less than or equal to the maximum number of incidents a dock can cover
+            model.addConstr(gp.quicksum(y[i] for i in coverable_incidents) <= max_dock_coverage_capacity) # The number of incidents covered by a dock must be less than or equal to the maximum number of incidents a dock can cover
 
     model.addConstr(gp.quicksum(x[d] for d in docks) <= dock_locations_quantity) # The number of docks must be less than or equal to the number of dock locations available
-    model.addConstr(gp.quicksum(y[i] for i in incidents) <= dock_locations_quantity * _max_dock_coverage_capacity) # Redundant constraint to ensure the number of incidents covered is less than or equal to the number of dock locations available multiplied by the maximum number of incidents a dock can cover
+    model.addConstr(gp.quicksum(y[i] for i in incidents) <= dock_locations_quantity * max_dock_coverage_capacity) # Redundant constraint to ensure the number of incidents covered is less than or equal to the number of dock locations available multiplied by the maximum number of incidents a dock can cover
     return model, x, y
 
-def maximize_incidents_covered(docks, incidents, dock_locations_quantity):
+def maximize_incidents_covered(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity):
     incident_to_docks, dock_to_incidents, dock_distance_sum = _precompute_coverage(docks, incidents)
-    model, x, y = _build_base_model(docks, incidents, dock_locations_quantity, incident_to_docks, dock_to_incidents)
+    model, x, y = _build_base_model(docks, incidents, dock_locations_quantity, incident_to_docks, dock_to_incidents, max_dock_coverage_capacity)
 
     coverage_weight = _coverage_weight(dock_distance_sum, dock_locations_quantity)
     # Objective function: Maximize the number of incidents covered
@@ -67,6 +66,8 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity):
 
     selected_docks = [d for d in docks if x[d].X > 0.5]
     covered_incidents = [i for i in incidents if y[i].X > 0.5]
+    print(f"Selected docks amount: {len(selected_docks)}")
+    print(f"Covered incidents amount: {len(covered_incidents)}")
 
     results = {
         "k": dock_locations_quantity,
@@ -77,13 +78,16 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity):
         "covered_incidents": covered_incidents,
     }
 
+    # Visualize map
+
+    create_map(selected_docks, covered_incidents, "optimized_map", all_incidents=incidents)
+    map_file = Path(__file__).resolve().parent.parent / "output/optimized_map.html"
+    if map_file.exists():
+        webbrowser.open(map_file.resolve().as_uri())
+
     return results
     
 
-    # Visualize map
-    # create_map(selected_docks, covered_incidents, "optimized_map", all_incidents=incidents)
-    # map_file = Path(__file__).resolve().parent.parent / "output/optimized_map.html"
-    # if map_file.exists():
-    #     webbrowser.open(map_file.resolve().as_uri())
+    
 
 

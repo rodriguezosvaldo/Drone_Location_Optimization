@@ -33,11 +33,11 @@ def _append_result(results, entry):
     results.append(entry)
 
 
-def no_fixed_locations(docks, incidents, k_min, k_max):
+def no_fixed_locations(docks, incidents, k_min, k_max, dock_locations_quantity, max_dock_coverage_capacity):
     results = []
     for k in range(k_min, k_max + 1):
         print(f"Running optimization test for k = {k}...")
-        r = maximize_incidents_covered(docks, incidents, k)
+        r = maximize_incidents_covered(docks, incidents, k, dock_locations_quantity, max_dock_coverage_capacity)
         if r is None:
             continue
         if r["incidents_covered"] == 0:
@@ -50,7 +50,7 @@ def no_fixed_locations(docks, incidents, k_min, k_max):
     return results
 
 
-def fixed_locations(docks, incidents, k_max):
+def fixed_locations(docks, incidents, k_max, dock_locations_quantity, max_dock_coverage_capacity):
     fixed_docks = [d for d in docks if d.name in METROSAFE_DOCK_LOCATIONS]
     docks_remaining = [d for d in docks if d.name not in METROSAFE_DOCK_LOCATIONS]
     fixed_covered = _union_covered_incidents(fixed_docks, incidents)
@@ -71,7 +71,7 @@ def fixed_locations(docks, incidents, k_max):
     for total_k in range(len(fixed_docks) + 1, k_max + 1):
         additional_k = total_k - len(fixed_docks)
         print(f"Running optimization test for {additional_k} additional dock(s) (total k = {total_k})...")
-        r = maximize_incidents_covered(docks_remaining, incidents, additional_k)
+        r = maximize_incidents_covered(docks_remaining, incidents, additional_k, dock_locations_quantity, max_dock_coverage_capacity)
         if r is None:
             continue
 
@@ -105,7 +105,7 @@ def _validate_k_range(k_min, k_max):
     return True
 
 
-def menu(docks, incidents):
+def menu(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity):
     while True:
         print("\n                    Menu")
         print("---------------------------------------------------")
@@ -121,14 +121,14 @@ def menu(docks, incidents):
             k_max = int(input("Enter the maximum number of docks to optimize: "))
             if not _validate_k_range(k_min, k_max):
                 continue
-            results = no_fixed_locations(docks, incidents, k_min, k_max)
+            results = no_fixed_locations(docks, incidents, k_min, k_max, dock_locations_quantity, max_dock_coverage_capacity)
             export_scenario_results("no_fixed", results, incidents)
         elif choice == "2":
             k_max = int(input("Enter the maximum total number of docks (including the 8 fixed): "))
             if k_max < len(METROSAFE_DOCK_LOCATIONS):
                 print(f"The maximum must be at least {len(METROSAFE_DOCK_LOCATIONS)} (current MetroSafe docks).")
                 continue
-            results = fixed_locations(docks, incidents, k_max)
+            results = fixed_locations(docks, incidents, k_max, dock_locations_quantity, max_dock_coverage_capacity)
             export_scenario_results("fixed_metrosafe", results, incidents)
         elif choice == "3":
             k_min = int(input("Enter the starting number of docks (no-fixed scenario): "))
@@ -138,8 +138,8 @@ def menu(docks, incidents):
             if k_max < len(METROSAFE_DOCK_LOCATIONS):
                 print(f"The maximum must be at least {len(METROSAFE_DOCK_LOCATIONS)} for the fixed scenario.")
                 continue
-            results_no_fixed = no_fixed_locations(docks, incidents, k_min, k_max)
-            results_fixed = fixed_locations(docks, incidents, k_max)
+            results_no_fixed = no_fixed_locations(docks, incidents, k_min, k_max, dock_locations_quantity, max_dock_coverage_capacity)
+            results_fixed = fixed_locations(docks, incidents, k_max, dock_locations_quantity, max_dock_coverage_capacity)
             export_scenario_results("no_fixed", results_no_fixed, incidents)
             export_scenario_results("fixed_metrosafe", results_fixed, incidents)
             export_comparison_results(
@@ -154,5 +154,5 @@ def menu(docks, incidents):
             print("Invalid choice")
 
 
-def test_multiple_optimizations(docks, incidents):
-    menu(docks, incidents)
+def test_multiple_optimizations(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity):
+    menu(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity)
