@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from matplotlib.ticker import MultipleLocator
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -25,6 +27,9 @@ MONTH_LABELS = [
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ]
 BAR_COLOR = "#1f77b4"
+CANDLE_BODY_COLOR = "#6baed6"
+CANDLE_WICK_COLOR = "#2171b5"
+CANDLE_MEAN_COLOR = "#d62728"
 FIG_SIZE = (10, 6)
 TOP_ZIPCODES = 10
 
@@ -75,6 +80,14 @@ def _counts_by_month(df: pd.DataFrame) -> pd.Series:
     return counts.reindex(range(1, 13), fill_value=0).astype(int)
 
 
+def _daily_incidents_stats_by_month(df: pd.DataFrame) -> pd.DataFrame:
+    """Min, max, and mean daily incident counts per calendar month."""
+    daily = df.groupby(df["date_occurred"].dt.normalize()).size()
+    stats = daily.groupby(daily.index.month).agg(["min", "max", "mean"])
+    stats.columns = ["min", "max", "mean"]
+    return stats.reindex(range(1, 13))
+
+
 def _counts_by_hour(df: pd.DataFrame) -> pd.Series:
     counts = df["date_occurred"].dt.hour.value_counts()
     return counts.reindex(range(24), fill_value=0).astype(int)
@@ -101,21 +114,118 @@ def _counts_for_zipcodes(df: pd.DataFrame, zipcodes: list[str]) -> pd.Series:
     )
 
 
-def _y_axis_limit(max_count: int) -> tuple[float, float]:
+def _y_axis_limit(max_count: float) -> tuple[float, float]:
     """Round ymax up to a sensible step (500 for large charts, smaller otherwise)."""
+    max_count = int(max_count)
     if max_count <= 0:
-        return 0.0, 500.0
+        return 0.0, 10.0
     if max_count <= 50:
-        step = 10
+        step = 2
     elif max_count <= 400:
-        step = 50
+        step = 5
     else:
         step = 500
     ymax = ((max_count // step) + 1) * step
     return 0.0, float(ymax)
 
 
-def _annotate_bars(ax, bars) -> None:
+def plot_daily_incidents_candlestick(
+    stats: pd.DataFrame,
+    *,
+    title: str,
+    xlabel: str,
+    x_tick_labels: list[str],
+    ylabel: str = "Daily incidents",
+    output_path: Path | str | None = None,
+    show: bool = False,
+) -> plt.Figure:
+    """Candlestick chart: min/max daily range per month with mean marker."""
+    fig, ax = plt.subplots(figsize=FIG_SIZE)
+    x_positions = range(len(x_tick_labels))
+    candle_width = 0.45
+
+    for x, month in zip(x_positions, stats.index):
+        row = stats.loc[month]
+        if pd.isna(row["min"]):
+            continue
+
+        low = float(row["min"])
+        high = float(row["max"])
+        mean = float(row["mean"])
+
+        ax.vlines(
+            x,
+            low,
+            high,
+            color=CANDLE_WICK_COLOR,
+            linewidth=2.2,
+            zorder=2,
+        )
+        ax.bar(
+            x,
+            high - low,
+            bottom=low,
+            width=candle_width,
+            color=CANDLE_BODY_COLOR,
+            edgecolor=CANDLE_WICK_COLOR,
+            linewidth=1.2,
+            alpha=0.55,
+            zorder=3,
+        )
+        ax.hlines(
+            mean,
+            x - candle_width / 2,
+            x + candle_width / 2,
+            color=CANDLE_MEAN_COLOR,
+            linewidth=3.0,
+            zorder=4,
+        )
+        ax.scatter(
+            x,
+            mean,
+            color=CANDLE_MEAN_COLOR,
+            s=28,
+            zorder=5,
+            edgecolors="white",
+            linewidths=0.6,
+        )
+
+    valid_max = stats["max"].max()
+    ymax = _y_axis_limit(float(valid_max) if pd.notna(valid_max) else 0)[1]
+    step = 2 if ymax <= 20 else (5 if ymax <= 50 else 10)
+    ax.set_ylim(0, ymax)
+    ax.yaxis.set_major_locator(MultipleLocator(step))
+
+    ax.set_xticks(list(x_positions))
+    ax.set_xticklabels(x_tick_labels, rotation=45, ha="right")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.grid(axis="y", linestyle="--", alpha=0.35, zorder=0)
+
+    legend_handles = [
+        Patch(facecolor=CANDLE_BODY_COLOR, edgecolor=CANDLE_WICK_COLOR, alpha=0.55, label="Min–Max range"),
+        Line2D([0], [0], color=CANDLE_MEAN_COLOR, linewidth=3, marker="o", markersize=5, label="Mean"),
+    ]
+    ax.legend(handles=legend_handles, loc="upper right", framealpha=0.9)
+
+    plt.tight_layout()
+
+    if output_path is not None:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, dpi=150, bbox_inches="tight", facecolor="white")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return fig
+
+
+def _annotate_bars(ax, bars, *, value_formatter=None) -> None:
+    fmt = value_formatter or (lambda v: f"{int(v):,}")
     for bar in bars:
         height = bar.get_height()
         if height <= 0:
@@ -123,7 +233,7 @@ def _annotate_bars(ax, bars) -> None:
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             height * 0.97,
-            f"{int(height):,}",
+            fmt(height),
             ha="center",
             va="top",
             color="white",
@@ -140,6 +250,7 @@ def plot_incident_distribution(
     x_tick_labels: list[str] | None = None,
     rotate_xticks: float = 0,
     ylabel: str = "Total incidents",
+    value_formatter=None,
     output_path: Path | str | None = None,
     show: bool = False,
 ) -> plt.Figure:
@@ -160,7 +271,7 @@ def plot_incident_distribution(
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    _annotate_bars(ax, bars)
+    _annotate_bars(ax, bars, value_formatter=value_formatter)
 
     plt.tight_layout()
 
@@ -189,6 +300,23 @@ def chart_distribution_by_month(
         xlabel="Month",
         x_tick_labels=MONTH_LABELS,
         rotate_xticks=45,
+        output_path=output_path,
+        show=show,
+    )
+
+
+def chart_daily_incidents_candlestick_by_month(
+    df: pd.DataFrame,
+    output_path: Path | str | None = None,
+    show: bool = False,
+) -> plt.Figure:
+    stats = _daily_incidents_stats_by_month(df)
+    return plot_daily_incidents_candlestick(
+        stats,
+        title="LMPD Daily Incidents by Month (Min, Max, Mean)",
+        xlabel="Month",
+        x_tick_labels=MONTH_LABELS,
+        ylabel="Daily incidents",
         output_path=output_path,
         show=show,
     )
@@ -258,11 +386,13 @@ def generate_all_charts(
 
     paths = {
         "by_month": out_dir / "lmpd_distribution_by_month.png",
+        "candlestick_by_month": out_dir / "lmpd_daily_incidents_candlestick_by_month.png",
         "by_hour": out_dir / "lmpd_distribution_by_hour.png",
         "by_zipcode": out_dir / "lmpd_distribution_by_zipcode.png",
     }
 
     chart_distribution_by_month(df, output_path=paths["by_month"])
+    chart_daily_incidents_candlestick_by_month(df, output_path=paths["candlestick_by_month"])
     chart_distribution_by_hour(df, output_path=paths["by_hour"])
     chart_distribution_by_zipcode(df, output_path=paths["by_zipcode"])
 
