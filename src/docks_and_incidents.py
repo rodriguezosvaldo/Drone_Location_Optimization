@@ -26,10 +26,11 @@ class Dock:
         return covered_incidents, total_distance_to_covered_incidents
 
 class Incident:
-    def __init__(self, incident_id, latitude, longitude):
+    def __init__(self, incident_id, latitude, longitude, date):
         self.incident_id = incident_id
         self.latitude = latitude
         self.longitude = longitude
+        self.date = date
 
     def covered_by(self, docks):
         covered_by = []
@@ -62,7 +63,7 @@ def get_incidents(excel_file_path):
     incidents = []
     incidents_data = pd.read_excel(excel_file_path)
     for index, row in incidents_data.iterrows():
-        incident = Incident(row['incident_number'], row['latitude'], row['longitude'])
+        incident = Incident(row['incident_number'], row['latitude'], row['longitude'], row['date'])
         incidents.append(incident)
     print(f"Incidents created: {len(incidents)}")
     return incidents

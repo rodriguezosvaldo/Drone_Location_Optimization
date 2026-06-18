@@ -52,7 +52,15 @@ def load_lmpd_data(data_path: Path | str = DEFAULT_DATA_PATH) -> pd.DataFrame:
     """Load geocoded LMPD incidents and ensure datetime + zip_code columns."""
     path = Path(data_path)
     df = pd.read_excel(path)
-    df["date_occurred"] = pd.to_datetime(df["date_occurred"], errors="coerce")
+    if "date_occurred" in df.columns:
+        df["date_occurred"] = pd.to_datetime(df["date_occurred"], errors="coerce")
+    elif {"date", "time"}.issubset(df.columns):
+        df["date_occurred"] = pd.to_datetime(
+            df["date"].astype(str) + " " + df["time"].astype(str),
+            errors="coerce",
+        )
+    else:
+        raise KeyError(f"Expected 'date_occurred' or ('date', 'time') in {path}")
     df = df.loc[df["date_occurred"].notna()].copy()
 
     if "block_address" in df.columns:

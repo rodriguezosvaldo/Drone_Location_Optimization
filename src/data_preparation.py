@@ -50,6 +50,14 @@ def address_street_only(value: object) -> str | None:
     street = text.split(",", 1)[0].strip()
     return street or None
 
+def split_date_occurred(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Split ``date_occurred`` into separate ``date`` and ``time`` columns."""
+    out = dataframe.copy()
+    occurred = pd.to_datetime(out["date_occurred"], errors="coerce")
+    out["date"] = occurred.dt.date
+    out["time"] = occurred.dt.time
+    return out.drop(columns=["date_occurred"])
+
 def normalize_zip_code(value: object) -> str | None:
     """Return a 5-digit ZIP string, or ``None`` if not usable."""
     if value is None or (isinstance(value, float) and pd.isna(value)):
@@ -225,6 +233,9 @@ def LMPD_data_cleaning(dataframe: pd.DataFrame) -> pd.DataFrame:
     )
     #==============================================================================
     
+    dataframe = split_date_occurred(dataframe)
+    print(f"Split date_occurred into date and time columns")
+
     print(f"Cleaning done: {len(dataframe):,} incidents ready for geocoding")
     return dataframe
 
