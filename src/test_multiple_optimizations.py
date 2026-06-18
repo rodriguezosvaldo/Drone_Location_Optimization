@@ -1,20 +1,9 @@
+from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS
 from src.optimization_model import maximize_incidents_covered
 from visualizations.charts_optimization_results import (
     export_comparison_results,
     export_scenario_results,
 )
-
-# MetroSafe current dock locations
-METROSAFE_DOCK_LOCATIONS = [
-    "1510 South 6th Street",
-    "1525 Winter Avenue",
-    "2620 Frankfort Avenue",
-    "2900 Hikes Lane",
-    "3228 River Park Drive",
-    "3511 Fincastle Road",
-    "4535 Manslick Road",
-    "601 West Chestnut Street",
-]
 
 
 def _union_covered_incidents(dock_list, incidents):

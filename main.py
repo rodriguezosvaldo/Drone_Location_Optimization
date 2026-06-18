@@ -5,7 +5,7 @@ from src.test_multiple_optimizations import test_multiple_optimizations
 
 # CONSTANTS
 DOCKS_EXCEL_FILE_PATH = "output/docks_JCPS_MetroSafe.xlsx"
-INCIDENTS_EXCEL_FILE_PATH = "output/clean_and_geocoded_LMPD_data_2025.xlsx"
+INCIDENTS_EXCEL_FILE_PATH = "output/06-26-2025_most_incidents.xlsx" # Most incidents on June 26, 2025
 
 def menu():
     while True:

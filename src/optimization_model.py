@@ -80,7 +80,13 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, max_do
 
     # Visualize map
 
-    create_map(selected_docks, covered_incidents, "optimized_map", all_incidents=incidents)
+    create_map(
+        selected_docks,
+        covered_incidents,
+        "optimized_map",
+        all_incidents=incidents,
+        covered_incidents=covered_incidents,
+    )
     map_file = Path(__file__).resolve().parent.parent / "output/optimized_map.html"
     if map_file.exists():
         webbrowser.open(map_file.resolve().as_uri())

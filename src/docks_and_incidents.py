@@ -7,6 +7,17 @@ import math
 DRONE_SPEED = 35.8 # 35.8 miles/hour = 16 meters/s data from https://www.skydio.com/x10/technical-specs
 RESPONSE_TIME = 0.033 # 0.033 hours = 2 minutes target response time
 
+METROSAFE_DOCK_LOCATIONS = [
+    "1510 South 6th Street",
+    "1525 Winter Avenue",
+    "2620 Frankfort Avenue",
+    "2900 Hikes Lane",
+    "3228 River Park Drive",
+    "3511 Fincastle Road",
+    "4535 Manslick Road",
+    "601 West Chestnut Street",
+]
+
 class Dock:
     def __init__(self, name, latitude, longitude, drone_speed, response_time):
         self.name = name

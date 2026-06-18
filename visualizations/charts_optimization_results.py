@@ -362,7 +362,14 @@ def export_best_configuration_map(
         return None
 
     map_name = output_name or f"optimization_map_{scenario_name}_k{best['k']}"
-    create_map(selected_docks, incidents, map_name, all_incidents=incidents)
+    covered_incidents = best.get("covered_incidents", [])
+    create_map(
+        selected_docks,
+        covered_incidents,
+        map_name,
+        all_incidents=incidents,
+        covered_incidents=covered_incidents,
+    )
     return MAPS_DIR / f"{map_name}.html"
 
 

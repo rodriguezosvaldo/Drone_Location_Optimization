@@ -1,65 +1,94 @@
 import folium
-from src.docks_and_incidents import coverage
+from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS, coverage
 
-def create_map(docks, incidents, map_name, all_incidents=None):
+DOCK_COLOR = "#1f77b4"
+METROSAFE_DOCK_COLOR = "#98df8a"
+INCIDENT_COVERED_COLOR = "#d62728"
+INCIDENT_UNCOVERED_COLOR = "#ffd700"
+
+
+def _dock_color(dock):
+    if dock.name in METROSAFE_DOCK_LOCATIONS:
+        return METROSAFE_DOCK_COLOR
+    return DOCK_COLOR
+
+
+def _covered_incidents_set(docks, display_incidents, explicit_covered):
+    if explicit_covered is not None:
+        return set(explicit_covered)
+    return {
+        incident
+        for incident in display_incidents
+        if any(coverage(dock, incident) for dock in docks)
+    }
+
+
+def _add_incident_marker(map, incident, color):
+    folium.CircleMarker(
+        location=[incident.latitude, incident.longitude],
+        radius=4,
+        color=color,
+        weight=1,
+        fill=True,
+        fill_color=color,
+        fill_opacity=0.9,
+        popup=folium.Popup(
+            html=f"""
+            <div style="padding-x:2px; white-space: nowrap;">
+                {incident.incident_id}
+            </div>
+            """,
+            max_width=100,
+        ),
+    ).add_to(map)
+
+
+def create_map(docks, incidents, map_name, all_incidents=None, covered_incidents=None):
     try:
         map = folium.Map(
             location=[38.2527, -85.7585],
             zoom_start=12,
-            tiles="CartoDB Positron"
+            tiles="CartoDB Positron",
         )
-        for incident in incidents:
-            folium.CircleMarker(
-                location=[incident.latitude, incident.longitude],
-                radius=4,
-                color="#d62728",
-                weight=1,
-                fill=True,
-                fill_color="#d62728",
-                fill_opacity=0.9,
-                popup=folium.Popup(
-                    html=f"""
-                    <div style="padding-x:2px; white-space: nowrap;">
-                        {incident.incident_id}
-                    </div>
-                    """,
-                    max_width=100
-                ),
-            ).add_to(map)
-            
+
+        display_incidents = all_incidents if all_incidents is not None else incidents
+        explicit_covered = covered_incidents
+        if explicit_covered is None and all_incidents is not None:
+            explicit_covered = incidents
+        covered_set = _covered_incidents_set(docks, display_incidents, explicit_covered)
+
+        for incident in display_incidents:
+            color = INCIDENT_COVERED_COLOR if incident in covered_set else INCIDENT_UNCOVERED_COLOR
+            _add_incident_marker(map, incident, color)
+
         incidents_by_dock = {
-            dock.name: sum(1 for incident in incidents if coverage(dock, incident))
+            dock.name: sum(1 for incident in covered_set if coverage(dock, incident))
             for dock in docks
         }
-        total_incidents = len(all_incidents) if all_incidents is not None else len(incidents)
-        if all_incidents is not None:
-            covered_incidents = len(incidents)
-        else:
-            covered_incidents = sum(
-                1 for incident in incidents
-                if any(coverage(dock, incident) for dock in docks)
-            )
-        uncovered_incidents = total_incidents - covered_incidents
-        covered_incidents_percentage = (covered_incidents / total_incidents * 100) if total_incidents else 0
+        total_incidents = len(display_incidents)
+        covered_count = len(covered_set)
+        uncovered_incidents = total_incidents - covered_count
+        covered_incidents_percentage = (covered_count / total_incidents * 100) if total_incidents else 0
         uncovered_incidents_percentage = (uncovered_incidents / total_incidents * 100) if total_incidents else 0
 
         for dock in docks:
+            color = _dock_color(dock)
             folium.Circle(
                 location=[dock.latitude, dock.longitude],
-                radius=dock.effective_radius*1609.344, # convert miles to meters
-                color="#1f77b4",
+                radius=dock.effective_radius * 1609.344,  # convert miles to meters
+                color=color,
                 weight=1,
                 fill=True,
-                fill_color="#1f77b4",
+                fill_color=color,
                 fill_opacity=0.10,
             ).add_to(map)
 
             folium.CircleMarker(
                 location=[dock.latitude, dock.longitude],
                 radius=3,
-                color="#1f77b4",
+                color=color,
                 fill=True,
-                fill_color="#1f77b4",
+                fill_color=color,
                 fill_opacity=1,
                 popup=folium.Popup(
                     html=f"""
@@ -69,7 +98,7 @@ def create_map(docks, incidents, map_name, all_incidents=None):
                         Covered Incidents: {incidents_by_dock[dock.name]}
                     </div>
                     """,
-                    max_width=200
+                    max_width=200,
                 ),
             ).add_to(map)
 
@@ -89,11 +118,19 @@ def create_map(docks, incidents, map_name, all_incidents=None):
         ">
             <div><b>Total Incidents:</b> {total_incidents}</div>
             <div><b>Dock Locations:</b> {len(docks)}</div>
-            <div><b>Covered Incidents:</b> {covered_incidents} ({covered_incidents_percentage:.0f}%)</div>
+            <div><b>Covered Incidents:</b> {covered_count} ({covered_incidents_percentage:.0f}%)</div>
             <div><b>Uncovered Incidents:</b> {uncovered_incidents} ({uncovered_incidents_percentage:.0f}%)</div>
+            <div style="margin-top: 8px;">
+                <span style="color:{INCIDENT_COVERED_COLOR};">&#9679;</span> Covered incident
+                <span style="margin-left: 10px; color:{INCIDENT_UNCOVERED_COLOR};">&#9679;</span> Uncovered incident
+            </div>
+            <div>
+                <span style="color:{DOCK_COLOR};">&#9679;</span> Dock
+                <span style="margin-left: 10px; color:{METROSAFE_DOCK_COLOR};">&#9679;</span> MetroSafe dock
+            </div>
         </div>
         """
         map.get_root().html.add_child(folium.Element(legend_html))
-        map.save(f'./output/{map_name}.html')
+        map.save(f"./output/{map_name}.html")
     except Exception as e:
         print(f"Error creating map: {e}")
