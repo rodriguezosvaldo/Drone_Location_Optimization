@@ -1,0 +1,12 @@
+numpy
+pandas
+openpyxl
+folium
+matplotlib
+plotly
+fpdf2
+gurobipy
+fastapi
+uvicorn[standard]
+python-multipart
+requests

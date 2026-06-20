@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MetroSafe Drone Optimization</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">MS</div>
+        <div>
+          <h1>MetroSafe</h1>
+          <p>Drone Optimization</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn active" data-section="upload">1. Datos</button>
+        <button class="nav-btn" data-section="single">2. Optimización simple</button>
+        <button class="nav-btn" data-section="batch">3. Escenarios múltiples</button>
+        <button class="nav-btn" data-section="outputs">4. Resultados</button>
+      </nav>
+      <div class="status-card" id="status-card">
+        <span class="status-dot offline"></span>
+        <div>
+          <strong>Estado</strong>
+          <p id="status-text">Sin datos cargados</p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="page-header">
+        <div>
+          <h2 id="page-title">Cargar datos</h2>
+          <p id="page-subtitle">Sube archivos Excel de docks e incidentes, o usa los datos predeterminados del proyecto.</p>
+        </div>
+      </header>
+
+      <section id="section-upload" class="panel active">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Archivo de docks</h3>
+            <p class="hint">Columnas requeridas: <code>name</code>, <code>latitude</code>, <code>longitude</code></p>
+            <label class="file-drop" id="docks-drop">
+              <input type="file" id="docks-file" accept=".xlsx,.xls">
+              <span>Arrastra o selecciona docks.xlsx</span>
+            </label>
+            <p class="file-name" id="docks-file-name">Ningún archivo seleccionado</p>
+            <button class="btn secondary" id="upload-docks-btn">Subir docks</button>
+          </div>
+
+          <div class="card">
+            <h3>Archivo de incidentes</h3>
+            <p class="hint">Columnas requeridas: <code>incident_number</code>, <code>latitude</code>, <code>longitude</code>, <code>date</code></p>
+            <label class="file-drop" id="incidents-drop">
+              <input type="file" id="incidents-file" accept=".xlsx,.xls">
+              <span>Arrastra o selecciona incidents.xlsx</span>
+            </label>
+            <p class="file-name" id="incidents-file-name">Ningún archivo seleccionado</p>
+            <button class="btn secondary" id="upload-incidents-btn">Subir incidentes</button>
+          </div>
+        </div>
+
+        <div class="card actions-card">
+          <h3>Cargar datos en memoria</h3>
+          <div class="radio-group">
+            <label><input type="radio" name="data-source" value="defaults" checked> Usar archivos predeterminados del proyecto</label>
+            <label><input type="radio" name="data-source" value="uploads"> Usar archivos subidos</label>
+          </div>
+          <button class="btn primary" id="load-data-btn">Cargar docks e incidentes</button>
+        </div>
+      </section>
+
+      <section id="section-single" class="panel">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Maximizar incidentes cubiertos</h3>
+            <p class="hint">Selecciona hasta k docks para maximizar la cobertura de incidentes.</p>
+            <div class="form-row">
+              <label>Número de docks (k)</label>
+              <input type="number" id="single-k" min="1" value="4">
+            </div>
+            <div class="form-row">
+              <label>Capacidad máxima por dock</label>
+              <input type="number" id="single-capacity" min="1" value="50">
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="single-map" checked> Generar mapa optimizado
+            </label>
+            <button class="btn primary" id="run-single-btn">Ejecutar optimización</button>
+          </div>
+
+          <div class="card">
+            <h3>Minimizar docks (100% cobertura)</h3>
+            <p class="hint">Encuentra el mínimo de docks necesarios para cubrir todos los incidentes alcanzables.</p>
+            <div class="form-row">
+              <label>Límite máximo de docks</label>
+              <input type="number" id="minimize-k" min="1" value="20">
+            </div>
+            <div class="form-row">
+              <label>Capacidad máxima por dock</label>
+              <input type="number" id="minimize-capacity" min="1" value="50">
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="minimize-map" checked> Generar mapa
+            </label>
+            <button class="btn primary" id="run-minimize-btn">Ejecutar minimización</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-batch" class="panel">
+        <div class="card">
+          <h3>Parámetros comunes</h3>
+          <div class="grid-2 compact">
+            <div class="form-row">
+              <label>Capacidad máxima por dock</label>
+              <input type="number" id="batch-capacity" min="1" value="50">
+            </div>
+            <div class="form-row">
+              <label>k mínimo (escenario sin fijos)</label>
+              <input type="number" id="batch-k-min" min="1" value="1">
+            </div>
+            <div class="form-row">
+              <label>k máximo</label>
+              <input type="number" id="batch-k-max" min="1" value="10">
+            </div>
+            <div class="form-row">
+              <label>k para comparación mensual</label>
+              <input type="number" id="monthly-k" min="1" value="4">
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Sin ubicaciones fijas</h3>
+            <p class="hint">Barrido de k desde mínimo a máximo, deteniéndose cuando no hay ganancia marginal.</p>
+            <button class="btn primary" id="run-no-fixed-btn">Ejecutar escenario</button>
+          </div>
+          <div class="card">
+            <h3>8 docks MetroSafe fijos</h3>
+            <p class="hint">Mantiene los 8 docks actuales y optimiza docks adicionales.</p>
+            <button class="btn primary" id="run-fixed-btn">Ejecutar escenario</button>
+          </div>
+          <div class="card">
+            <h3>Comparar ambos escenarios</h3>
+            <p class="hint">Ejecuta los dos escenarios y genera gráficos comparativos.</p>
+            <button class="btn primary" id="run-compare-btn">Ejecutar comparación</button>
+          </div>
+          <div class="card">
+            <h3>Optimización por mes</h3>
+            <p class="hint">Optimiza el día pico de incidentes de cada mes.</p>
+            <button class="btn primary" id="run-monthly-btn">Ejecutar por mes</button>
+          </div>
+        </div>
+
+        <div class="card job-panel hidden" id="job-panel">
+          <h3>Progreso de optimización</h3>
+          <div class="job-status">
+            <span class="spinner" id="job-spinner"></span>
+            <span id="job-status-text">En ejecución...</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-outputs" class="panel">
+        <div class="card">
+          <div class="outputs-header">
+            <h3>Archivos generados</h3>
+            <button class="btn secondary" id="refresh-outputs-btn">Actualizar</button>
+          </div>
+          <div id="outputs-list" class="outputs-list"></div>
+        </div>
+        <div class="card preview-card hidden" id="preview-card">
+          <h3>Vista previa</h3>
+          <div id="preview-content"></div>
+        </div>
+      </section>
+
+      <section class="results-panel hidden" id="results-panel">
+        <div class="card">
+          <div class="results-header">
+            <h3>Resultados</h3>
+            <button class="btn ghost" id="close-results-btn">Cerrar</button>
+          </div>
+          <pre id="results-json"></pre>
+        </div>
+      </section>
+
+      <div class="toast hidden" id="toast"></div>
+    </main>
+  </div>
+  <script src="js/app.js"></script>
+</body>
+</html>

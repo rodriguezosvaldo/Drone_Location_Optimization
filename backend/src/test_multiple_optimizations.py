@@ -2,6 +2,7 @@ from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS
 from src.optimization_model import maximize_incidents_covered
 from visualizations.charts_optimization_results import (
     export_comparison_results,
+    export_monthly_comparison_results,
     export_scenario_results,
 )
 
@@ -26,7 +27,7 @@ def no_fixed_locations(docks, incidents, k_min, k_max, dock_locations_quantity, 
     results = []
     for k in range(k_min, k_max + 1):
         print(f"Running optimization test for k = {k}...")
-        r = maximize_incidents_covered(docks, incidents, k, dock_locations_quantity, max_dock_coverage_capacity)
+        r = maximize_incidents_covered(docks, incidents, k, max_dock_coverage_capacity)
         if r is None:
             continue
         if r["incidents_covered"] == 0:
@@ -60,7 +61,7 @@ def fixed_locations(docks, incidents, k_max, dock_locations_quantity, max_dock_c
     for total_k in range(len(fixed_docks) + 1, k_max + 1):
         additional_k = total_k - len(fixed_docks)
         print(f"Running optimization test for {additional_k} additional dock(s) (total k = {total_k})...")
-        r = maximize_incidents_covered(docks_remaining, incidents, additional_k, dock_locations_quantity, max_dock_coverage_capacity)
+        r = maximize_incidents_covered(docks_remaining, incidents, additional_k, max_dock_coverage_capacity)
         if r is None:
             continue
 
@@ -80,6 +81,48 @@ def fixed_locations(docks, incidents, k_max, dock_locations_quantity, max_dock_c
 
     return results
 
+# Currently running only for day with the maximum number of incidents in each month
+def compare_optimizations_by_month(docks, incidents_by_month, dock_locations_quantity, max_dock_coverage_capacity):
+    monthly_results = []
+    for month in sorted(incidents_by_month):
+        days = incidents_by_month[month]
+        if not days:
+            continue
+
+        max_incidents_day = max(days, key=lambda day: len(days[day]))
+        peak_incidents = days[max_incidents_day]
+        print(
+            f"Running optimization for day {max_incidents_day} in month {month} "
+            f"({len(peak_incidents)} incidents)..."
+        )
+        results = maximize_incidents_covered(
+            docks,
+            peak_incidents,
+            dock_locations_quantity,
+            max_dock_coverage_capacity,
+        )
+        if results is None:
+            continue
+
+        monthly_results.append(
+            {
+                "month": month,
+                "peak_day": max_incidents_day,
+                "peak_day_incidents": len(peak_incidents),
+                "incidents_covered": results["incidents_covered"],
+                "coverage_rate": results["coverage_rate"],
+                "amount_selected_docks": results["amount_selected_docks"],
+                "selected_docks": results["selected_docks"],
+                "covered_incidents": results["covered_incidents"],
+            }
+        )
+
+    export_monthly_comparison_results(
+        monthly_results,
+        dock_locations_quantity=dock_locations_quantity,
+    )
+    return monthly_results
+
 
 def _validate_k_range(k_min, k_max):
     if k_min > k_max:
@@ -94,13 +137,14 @@ def _validate_k_range(k_min, k_max):
     return True
 
 
-def menu(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity):
+def menu(docks, incidents, incidents_by_month, dock_locations_quantity, max_dock_coverage_capacity):
     while True:
         print("\n                    Menu")
         print("---------------------------------------------------")
         print("1. Test optimizations with no fixed locations")
         print("2. Test optimizations starting from the 8 current MetroSafe dock locations")
         print("3. Run both scenarios and compare")
+        print("4. Compare optimizations for the peak-incident day of each month")
         print("0. Exit")
         print("---------------------------------------------------")
         choice = input("\nEnter your choice: ")
@@ -137,11 +181,18 @@ def menu(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity):
                     "fixed_metrosafe": results_fixed,
                 }
             )
+        elif choice == "4":
+            compare_optimizations_by_month(
+                docks,
+                incidents_by_month,
+                dock_locations_quantity,
+                max_dock_coverage_capacity,
+            )
         elif choice == "0":
             break
         else:
             print("Invalid choice")
 
 
-def test_multiple_optimizations(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity):
-    menu(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity)
+def test_multiple_optimizations(docks, incidents, incidents_by_month, dock_locations_quantity, max_dock_coverage_capacity):
+    menu(docks, incidents, incidents_by_month, dock_locations_quantity, max_dock_coverage_capacity)

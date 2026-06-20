@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import math
+from collections import defaultdict
+from datetime import date
 
 # CONSTANTS
 # Drone speed and response time are constant values
@@ -79,9 +81,71 @@ def get_incidents(excel_file_path):
     print(f"Incidents created: {len(incidents)}")
     return incidents
 
+def _incident_date(incident):
+    """Normalize incident.date to a datetime.date."""
+    value = incident.date
+    if isinstance(value, date) and not hasattr(value, "hour"):
+        return value
+    if hasattr(value, "date"):
+        return value.date()
+    return pd.to_datetime(value).date()
+
+def get_incidents_by_date(incidents):
+    """Group incidents by month and representative days (max, mean, min daily counts).
+
+    Returns a dict keyed by month (1-12). Each month maps dates to incident lists:
+    - date(s) with the highest daily count that month
+    - date(s) whose daily count is closest to the monthly mean
+    - date(s) with the lowest daily count that month
+    """
+    incidents_by_date = defaultdict(list)
+    for incident in incidents:
+        incidents_by_date[_incident_date(incident)].append(incident)
+
+    incidents_by_month = {}
+    for month in range(1, 13):
+        month_incidents_by_date = {
+            day: day_incidents
+            for day, day_incidents in incidents_by_date.items()
+            if day.month == month
+        }
+        if not month_incidents_by_date:
+            incidents_by_month[month] = {}
+            continue
+
+        daily_counts = {
+            day: len(day_incidents)
+            for day, day_incidents in month_incidents_by_date.items()
+        }
+        max_count = max(daily_counts.values())
+        min_count = min(daily_counts.values())
+        mean_count = sum(daily_counts.values()) / len(daily_counts)
+
+        max_dates = [day for day, count in daily_counts.items() if count == max_count]
+        min_dates = [day for day, count in daily_counts.items() if count == min_count]
+        mean_distance = min(abs(count - mean_count) for count in daily_counts.values())
+        mean_dates = [
+            day
+            for day, count in daily_counts.items()
+            if abs(count - mean_count) == mean_distance
+        ]
+
+        representative_dates = {
+            min(max_dates),
+            min(mean_dates),
+            min(min_dates),
+        }
+
+        incidents_by_month[month] = {
+            day: month_incidents_by_date[day] for day in sorted(representative_dates)
+        }
+
+    return incidents_by_month
 
 def create_docks_and_incidents(docks_excel_file_path, incidents_excel_file_path):
     print("Creating docks and incidents...")
     docks = get_docks(docks_excel_file_path)
     incidents = get_incidents(incidents_excel_file_path)
-    return docks, incidents
+    incidents_by_month = get_incidents_by_date(incidents)
+
+    return docks, incidents, incidents_by_month

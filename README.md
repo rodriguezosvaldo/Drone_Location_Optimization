@@ -35,26 +35,24 @@ deployed to support faster and more effective emergency response.
 
 ```
 MetroSafe-UofL_Drone_Optimization/
-├── data/                          # Raw data and temporary geocoding artifacts
-│   ├── RAW_crime_data_2025.xlsx   # LMPD incidents (required)
-│   ├── RAW_Jefferson_County_KY_Schools.csv
-│   └── Dataflights.xlsx           # Documented flights/incidents (separate analysis)
-├── output/                        # Generated outputs (gitignored)
-│   ├── clean_and_geocoded_LMPD_data_2025.xlsx
-│   ├── clean_and_geocoded_JCPS_schools.xlsx
-│   ├── figures/                   # Visualization PNGs
-│   └── *.html                     # Folium maps
-├── src/
-│   ├── data_preparation.py        # LMPD/JCPS cleaning + geocoding pipeline
-│   ├── geocode_addresses.py       # Census geocoding (reusable)
-│   ├── docks_and_incidents.py     # Dock/Incident models and coverage function
-│   ├── optimization_model.py      # Coverage maximization (Gurobi)
-│   └── analysis_dataflights_document.py
-├── visualizations/
-│   ├── charts_lmpd_high_priority.py
-│   └── map_incidents_and_docks.py
-├── main.py                        # Interactive optimization menu
-└── requirements.txt
+├── backend/                       # Python API, models, data pipelines
+│   ├── app/                       # FastAPI web server
+│   │   ├── main.py
+│   │   ├── routes/
+│   │   └── services/
+│   ├── cli/main.py                # Legacy interactive CLI menu
+│   ├── src/                       # Core Python modules
+│   ├── visualizations/
+│   ├── data/                      # Raw inputs
+│   ├── output/                    # Generated outputs
+│   ├── uploads/                   # User-uploaded Excel files (web UI)
+│   └── requirements.txt
+├── frontend/                      # Web interface (HTML/CSS/JS)
+│   ├── index.html
+│   ├── css/
+│   └── js/
+├── run_web.py                     # Start the web application
+└── requirements.txt               # Points to backend/requirements.txt
 ```
 
 ## Requirements
@@ -86,21 +84,38 @@ pip install -r requirements.txt
 
 | File | Source / purpose |
 |------|------------------|
-| `data/RAW_crime_data_2025.xlsx` | Louisville Metro open data — 2025 crimes/incidents |
-| `data/RAW_Jefferson_County_KY_Schools.csv` | Jefferson County schools (JCPS) |
-| `data/Dataflights.xlsx` | Flight/incident log for PDF reports |
+| `backend/data/RAW_crime_data_2025.xlsx` | Louisville Metro open data — 2025 crimes/incidents |
+| `backend/data/RAW_Jefferson_County_KY_Schools.csv` | Jefferson County schools (JCPS) |
+| `backend/data/Dataflights.xlsx` | Flight/incident log for PDF reports |
 
 Reference portal: [Louisville Metro Open Data](https://data.louisvilleky.gov/).
 
-Place raw files in `data/` before running pipelines. Clean, geocoded Excel outputs are written to `output/` (folder excluded from version control).
+Place raw files in `backend/data/` before running pipelines. Clean, geocoded Excel outputs are written to `backend/output/`.
 
 ## Usage
 
-### 1. Cleaning and geocoding (LMPD and/or JCPS)
+### Web interface (recommended)
 
-Run the main preparation module:
+From the project root:
 
 ```powershell
+python run_web.py
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. The interface lets you:
+
+1. Upload Excel files for docks and incidents (or use project defaults).
+2. Load data and generate the docks/incidents map.
+3. Run single optimizations (maximize coverage or minimize docks).
+4. Run batch scenarios (no fixed docks, fixed MetroSafe docks, compare both, monthly peak-day analysis).
+5. Preview and download maps, charts, and Excel result tables.
+
+### 1. Cleaning and geocoding (LMPD and/or JCPS)
+
+Run from the `backend/` directory:
+
+```powershell
+cd backend
 python -m src.data_preparation
 ```
 
@@ -123,41 +138,44 @@ python -m src.data_preparation --dataset both
 
 **Outputs:**
 
-- `output/clean_and_geocoded_LMPD_data_2025.xlsx`
-- `output/clean_and_geocoded_JCPS_schools.xlsx`
+- `backend/output/clean_and_geocoded_LMPD_data_2025.xlsx`
+- `backend/output/clean_and_geocoded_JCPS_schools.xlsx`
 
 Standalone geocoding (input already cleaned with `clean_address`, `clean_street`, `city`, `zip_code`):
 
 ```powershell
+cd backend
 python -m src.geocode_addresses --input path\to\input.xlsx --output output\output.xlsx
 ```
 
 ### 2. LMPD and JCPS visualizations
 
-Requires geocoded Excel files in `output/`:
+Requires geocoded Excel files in `backend/output/`:
 
 ```powershell
+cd backend
 python -m visualizations.charts_lmpd_high_priority
 ```
 
-Writes to `output/figures/`:
+Writes to `backend/output/figures/`:
 
 - `lmpd_distribution_by_month.png`
 - `lmpd_distribution_by_hour.png`
 - `lmpd_distribution_by_zipcode.png`
 - `jcps_locations_by_zipcode.png` (ZIP order aligned to LMPD top 10)
 
-### 3. Dock and incident optimization
+### 3. Dock and incident optimization (CLI)
 
 ```powershell
-python main.py
+cd backend
+python cli/main.py
 ```
 
 Expected menu flow:
 
 1. Create `Dock` and `Incident` objects from Excel files with coordinates.
 2. Run `maximize_incidents_covered` (up to `DOCK_LOCATIONS_QUANTITY`).
-3. Open HTML map at `output/optimized_map.html`.
+3. Open HTML map at `backend/output/optimized_map.html`.
 
 **Coverage parameters** (`src/docks_and_incidents.py`):
 
@@ -169,6 +187,7 @@ Expected menu flow:
 ### 4. Dataflights analysis (PDF report)
 
 ```powershell
+cd backend
 python -m src.analysis_dataflights_document
 ```
 

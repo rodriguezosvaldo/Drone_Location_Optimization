@@ -1,16 +1,21 @@
+from pathlib import Path
+
 import folium
 from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS, coverage
 
+OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
+
 DOCK_COLOR = "#1f77b4"
-METROSAFE_DOCK_COLOR = "#98df8a"
+METROSAFE_DOCK_BORDER_COLOR = "#1B5E20"
+METROSAFE_DOCK_FILL_COLOR = "#A5D6A7"
 INCIDENT_COVERED_COLOR = "#d62728"
-INCIDENT_UNCOVERED_COLOR = "#ffd700"
+INCIDENT_UNCOVERED_COLOR = "#6A1B9A"
 
 
-def _dock_color(dock):
+def _dock_colors(dock):
     if dock.name in METROSAFE_DOCK_LOCATIONS:
-        return METROSAFE_DOCK_COLOR
-    return DOCK_COLOR
+        return METROSAFE_DOCK_BORDER_COLOR, METROSAFE_DOCK_FILL_COLOR
+    return DOCK_COLOR, DOCK_COLOR
 
 
 def _covered_incidents_set(docks, display_incidents, explicit_covered):
@@ -72,23 +77,23 @@ def create_map(docks, incidents, map_name, all_incidents=None, covered_incidents
         uncovered_incidents_percentage = (uncovered_incidents / total_incidents * 100) if total_incidents else 0
 
         for dock in docks:
-            color = _dock_color(dock)
+            border_color, fill_color = _dock_colors(dock)
             folium.Circle(
                 location=[dock.latitude, dock.longitude],
                 radius=dock.effective_radius * 1609.344,  # convert miles to meters
-                color=color,
+                color=border_color,
                 weight=1,
                 fill=True,
-                fill_color=color,
+                fill_color=fill_color,
                 fill_opacity=0.10,
             ).add_to(map)
 
             folium.CircleMarker(
                 location=[dock.latitude, dock.longitude],
                 radius=3,
-                color=color,
+                color=border_color,
                 fill=True,
-                fill_color=color,
+                fill_color=border_color,
                 fill_opacity=1,
                 popup=folium.Popup(
                     html=f"""
@@ -126,11 +131,12 @@ def create_map(docks, incidents, map_name, all_incidents=None, covered_incidents
             </div>
             <div>
                 <span style="color:{DOCK_COLOR};">&#9679;</span> Dock
-                <span style="margin-left: 10px; color:{METROSAFE_DOCK_COLOR};">&#9679;</span> MetroSafe dock
+                <span style="margin-left: 10px; color:{METROSAFE_DOCK_BORDER_COLOR};">&#9679;</span> MetroSafe dock
             </div>
         </div>
         """
         map.get_root().html.add_child(folium.Element(legend_html))
-        map.save(f"./output/{map_name}.html")
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        map.save(str(OUTPUT_DIR / f"{map_name}.html"))
     except Exception as e:
         print(f"Error creating map: {e}")

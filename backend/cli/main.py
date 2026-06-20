@@ -1,13 +1,27 @@
+import os
+import sys
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BACKEND_ROOT))
+os.chdir(BACKEND_ROOT)
+
 from src.docks_and_incidents import create_docks_and_incidents
 from src.optimization_model import maximize_incidents_covered
-from visualizations.map_incidents_and_docks import create_map
 from src.test_multiple_optimizations import test_multiple_optimizations
+from visualizations.map_incidents_and_docks import create_map
 
-# CONSTANTS
 DOCKS_EXCEL_FILE_PATH = "output/docks_JCPS_MetroSafe.xlsx"
-INCIDENTS_EXCEL_FILE_PATH = "output/06-26-2025_most_incidents.xlsx" # Most incidents on June 26, 2025
+INCIDENTS_EXCEL_FILE_PATH = "output/clean_and_geocoded_LMPD_data_2025.xlsx"
+
+docks = None
+incidents = None
+incidents_by_month = None
+
 
 def menu():
+    global docks, incidents, incidents_by_month
+
     while True:
         print("\n                    Menu")
         print("---------------------------------------------------")
@@ -20,7 +34,9 @@ def menu():
         choice = input("\nEnter your choice: ")
 
         if choice == "1":
-            docks, incidents = create_docks_and_incidents(DOCKS_EXCEL_FILE_PATH, INCIDENTS_EXCEL_FILE_PATH)
+            docks, incidents, incidents_by_month = create_docks_and_incidents(
+                DOCKS_EXCEL_FILE_PATH, INCIDENTS_EXCEL_FILE_PATH
+            )
             create_map(docks, incidents, "docks_and_incidents_map")
             continue
         elif choice == "2":
@@ -29,21 +45,29 @@ def menu():
                     raise Exception("Create docks and incidents first to run the optimization model")
                 dock_locations_quantity = int(input("Enter the number of dock locations available: "))
                 max_dock_coverage_capacity = int(input("Enter the maximum number of incidents a dock can cover: "))
-                maximize_incidents_covered(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity)
+                maximize_incidents_covered(
+                    docks, incidents, dock_locations_quantity, max_dock_coverage_capacity
+                )
             except Exception as e:
                 print("Be sure to create docks and incidents before running the optimization model")
                 print(f"Error running the optimization model: {e}")
                 continue
         elif choice == "3":
+            if docks is None or incidents is None:
+                print("Create docks and incidents first (option 1).")
+                continue
             dock_locations_quantity = int(input("Enter the number of dock locations available: "))
             max_dock_coverage_capacity = int(input("Enter the maximum number of incidents a dock can cover: "))
-            test_multiple_optimizations(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity)
+            test_multiple_optimizations(
+                docks, incidents, incidents_by_month, dock_locations_quantity, max_dock_coverage_capacity
+            )
             continue
         elif choice == "4":
             break
         else:
-            print("Invalid choice") 
+            print("Invalid choice")
             continue
-        
+
+
 if __name__ == "__main__":
     menu()

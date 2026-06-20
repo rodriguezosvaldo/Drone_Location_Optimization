@@ -1,8 +1,1 @@
-numpy
-pandas
-openpyxl
-folium
-matplotlib
-plotly
-fpdf2
-gurobipy
+-r backend/requirements.txt

@@ -33,6 +33,10 @@ SCENARIO_LABELS = {
     "no_fixed": "No fixed locations",
     "fixed_metrosafe": "8 MetroSafe docks fixed",
 }
+MONTH_LABELS = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
 
 
 def _ensure_output_dirs() -> None:
@@ -396,6 +400,87 @@ def export_scenario_results(
         paths["map"] = map_path
 
     print(f"\nExported results for '{SCENARIO_LABELS.get(scenario_name, scenario_name)}':")
+    for label, path in paths.items():
+        print(f"  {label}: {path}")
+
+    return paths
+
+
+def chart_incidents_covered_by_month(
+    monthly_results: list[dict],
+    *,
+    dock_locations_quantity: int,
+    output_path: Path | None = None,
+) -> Path | None:
+    """Line chart: incidents covered vs month (peak day per month)."""
+    if not monthly_results:
+        return None
+
+    _ensure_output_dirs()
+    output_path = output_path or FIGURES_DIR / "optimization_incidents_covered_by_month.png"
+
+    months = [r["month"] for r in monthly_results]
+    covered = [r["incidents_covered"] for r in monthly_results]
+    month_names = [MONTH_LABELS[m - 1] for m in months]
+
+    fig, ax = plt.subplots(figsize=FIG_SIZE)
+    ax.plot(months, covered, marker="o", color=LINE_COLOR, linewidth=2, markersize=8)
+    ax.set_xticks(months)
+    ax.set_xticklabels(month_names)
+    ax.set_xlabel("Month")
+    ax.set_ylabel("Incidents covered")
+    ax.set_title(
+        "Incidents Covered by Month (Peak Day)\n"
+        f"Optimized with up to {dock_locations_quantity} dock location(s)"
+    )
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    return output_path
+
+
+def export_monthly_comparison_results(
+    monthly_results: list[dict],
+    *,
+    dock_locations_quantity: int,
+) -> dict[str, Path]:
+    """Export monthly peak-day optimization chart and table."""
+    if not monthly_results:
+        print("No monthly optimization results to export.")
+        return {}
+
+    _ensure_output_dirs()
+    paths: dict[str, Path] = {}
+
+    chart_path = chart_incidents_covered_by_month(
+        monthly_results,
+        dock_locations_quantity=dock_locations_quantity,
+    )
+    if chart_path:
+        paths["incidents_by_month_chart"] = chart_path
+
+    table_path = TABLES_DIR / "optimization_results_by_month_peak_day.xlsx"
+    df = pd.DataFrame(
+        [
+            {
+                "month": r["month"],
+                "month_label": MONTH_LABELS[r["month"] - 1],
+                "peak_day": r["peak_day"],
+                "peak_day_incidents": r["peak_day_incidents"],
+                "incidents_covered": r["incidents_covered"],
+                "coverage_rate_pct": round(r["coverage_rate"] * 100, 2),
+                "amount_selected_docks": r["amount_selected_docks"],
+                "dock_locations_quantity": dock_locations_quantity,
+            }
+            for r in monthly_results
+        ]
+    )
+    df.to_excel(table_path, index=False, sheet_name="peak_day_by_month")
+    paths["table"] = table_path
+
+    print("\nExported monthly peak-day optimization results:")
     for label, path in paths.items():
         print(f"  {label}: {path}")
 
