@@ -8,6 +8,11 @@ from datetime import date
 # Drone speed and response time are constant values
 DRONE_SPEED = 35.8 # 35.8 miles/hour data from https://www.skydio.com/x10/technical-specs
 RESPONSE_TIME = 0.033 # 0.033 hours = 2 minutes target response time
+MAX_MISSION_TIME = 1800 # 1800 seconds = 30 minutes (https://www.skydio.com/x10/technical-specs gives 40 minutes in ideal conditions)
+BATTERY_RECHARGE_TIME = 3600 # 3600 seconds = 1 hour (https://www.skydio.com/x10/technical-specs using charger 230W)
+CICLE_TIME = MAX_MISSION_TIME + BATTERY_RECHARGE_TIME # 1800 + 3600 = 5400 seconds = 90 minutes
+DRONE_DISPOSITION_TIME = 57600 # 57600 seconds = 16 hours (Two shifts of 8 hours each)
+DRONE_CAPACITY = DRONE_DISPOSITION_TIME / CICLE_TIME # 57600 / 5400 = 10.66 = 10 incidents per day
 
 METROSAFE_DOCK_LOCATIONS = [
     "1510 South 6th Street",
