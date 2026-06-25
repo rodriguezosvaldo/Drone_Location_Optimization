@@ -6,7 +6,7 @@ from datetime import date
 
 # CONSTANTS
 # Drone speed and response time are constant values
-DRONE_SPEED = 35.8 # 35.8 miles/hour = 16 meters/s data from https://www.skydio.com/x10/technical-specs
+DRONE_SPEED = 35.8 # 35.8 miles/hour data from https://www.skydio.com/x10/technical-specs
 RESPONSE_TIME = 0.033 # 0.033 hours = 2 minutes target response time
 
 METROSAFE_DOCK_LOCATIONS = [

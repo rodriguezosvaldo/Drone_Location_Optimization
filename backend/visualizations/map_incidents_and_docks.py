@@ -3,7 +3,8 @@ from pathlib import Path
 import folium
 from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS, coverage
 
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_DIR = BACKEND_ROOT.parent / "output"
 
 DOCK_COLOR = "#1f77b4"
 METROSAFE_DOCK_BORDER_COLOR = "#1B5E20"
@@ -16,17 +17,6 @@ def _dock_colors(dock):
     if dock.name in METROSAFE_DOCK_LOCATIONS:
         return METROSAFE_DOCK_BORDER_COLOR, METROSAFE_DOCK_FILL_COLOR
     return DOCK_COLOR, DOCK_COLOR
-
-
-def _covered_incidents_set(docks, display_incidents, explicit_covered):
-    if explicit_covered is not None:
-        return set(explicit_covered)
-    return {
-        incident
-        for incident in display_incidents
-        if any(coverage(dock, incident) for dock in docks)
-    }
-
 
 def _add_incident_marker(map, incident, color):
     folium.CircleMarker(
@@ -48,7 +38,7 @@ def _add_incident_marker(map, incident, color):
     ).add_to(map)
 
 
-def create_map(docks, incidents, map_name, all_incidents=None, covered_incidents=None):
+def create_map(docks, incidents, map_name, incidents_covered):
     try:
         map = folium.Map(
             location=[38.2527, -85.7585],
@@ -56,31 +46,21 @@ def create_map(docks, incidents, map_name, all_incidents=None, covered_incidents
             tiles="CartoDB Positron",
         )
 
-        display_incidents = all_incidents if all_incidents is not None else incidents
-        explicit_covered = covered_incidents
-        if explicit_covered is None and all_incidents is not None:
-            explicit_covered = incidents
-        covered_set = _covered_incidents_set(docks, display_incidents, explicit_covered)
+        uncovered_incidents = [incident for incident in incidents if incident not in incidents_covered]
 
-        for incident in display_incidents:
-            color = INCIDENT_COVERED_COLOR if incident in covered_set else INCIDENT_UNCOVERED_COLOR
-            _add_incident_marker(map, incident, color)
+        for incident in uncovered_incidents:
+            _add_incident_marker(map, incident, INCIDENT_UNCOVERED_COLOR)
 
-        incidents_by_dock = {
-            dock.name: sum(1 for incident in covered_set if coverage(dock, incident))
-            for dock in docks
-        }
-        total_incidents = len(display_incidents)
-        covered_count = len(covered_set)
-        uncovered_incidents = total_incidents - covered_count
-        covered_incidents_percentage = (covered_count / total_incidents * 100) if total_incidents else 0
-        uncovered_incidents_percentage = (uncovered_incidents / total_incidents * 100) if total_incidents else 0
+        for incident in incidents_covered:
+            _add_incident_marker(map, incident, INCIDENT_COVERED_COLOR)
 
         for dock in docks:
+            dock_radius = dock.effective_radius*1609.34 # convert miles to meters to be able to use the folium library
+            covered_incidents, total_distance_to_covered_incidents = dock.incidents_covered(incidents_covered)
             border_color, fill_color = _dock_colors(dock)
             folium.Circle(
                 location=[dock.latitude, dock.longitude],
-                radius=dock.effective_radius * 1609.344,  # convert miles to meters
+                radius=dock_radius,
                 color=border_color,
                 weight=1,
                 fill=True,
@@ -100,7 +80,7 @@ def create_map(docks, incidents, map_name, all_incidents=None, covered_incidents
                     <div style="padding-x:2px; white-space: nowrap;">
                         <b>{dock.name}</b><br>
                         Effective Radius: {dock.effective_radius:.2f} miles<br>
-                        Covered Incidents: {incidents_by_dock[dock.name]}
+                        Covered Incidents: {len(covered_incidents)}
                     </div>
                     """,
                     max_width=200,
@@ -121,10 +101,10 @@ def create_map(docks, incidents, map_name, all_incidents=None, covered_incidents
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             max-width: 320px;
         ">
-            <div><b>Total Incidents:</b> {total_incidents}</div>
+            <div><b>Total Incidents:</b> {len(incidents)}</div>
             <div><b>Dock Locations:</b> {len(docks)}</div>
-            <div><b>Covered Incidents:</b> {covered_count} ({covered_incidents_percentage:.0f}%)</div>
-            <div><b>Uncovered Incidents:</b> {uncovered_incidents} ({uncovered_incidents_percentage:.0f}%)</div>
+            <div><b>Covered Incidents:</b> {len(incidents_covered)} ({len(incidents_covered) / len(incidents) * 100:.2f}%)</div>
+            <div><b>Uncovered Incidents:</b> {len(uncovered_incidents)} ({len(uncovered_incidents) / len(incidents) * 100:.2f}%)</div>
             <div style="margin-top: 8px;">
                 <span style="color:{INCIDENT_COVERED_COLOR};">&#9679;</span> Covered incident
                 <span style="margin-left: 10px; color:{INCIDENT_UNCOVERED_COLOR};">&#9679;</span> Uncovered incident

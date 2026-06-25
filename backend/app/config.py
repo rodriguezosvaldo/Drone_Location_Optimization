@@ -3,8 +3,8 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BACKEND_ROOT.parent
 
-DATA_DIR = BACKEND_ROOT / "data"
-OUTPUT_DIR = BACKEND_ROOT / "output"
+DATA_DIR = PROJECT_ROOT / "data"
+OUTPUT_DIR = PROJECT_ROOT / "output"
 UPLOADS_DIR = BACKEND_ROOT / "uploads"
 FIGURES_DIR = OUTPUT_DIR / "figures"
 TABLES_DIR = OUTPUT_DIR / "tables"

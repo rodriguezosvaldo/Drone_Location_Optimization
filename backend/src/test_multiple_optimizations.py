@@ -1,10 +1,6 @@
 from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS
 from src.optimization_model import maximize_incidents_covered
-from visualizations.charts_optimization_results import (
-    export_comparison_results,
-    export_monthly_comparison_results,
-    export_scenario_results,
-)
+from visualizations.charts_optimization_results import chart_incidents_covered_vs_k
 
 
 def _union_covered_incidents(dock_list, incidents):
@@ -117,10 +113,6 @@ def compare_optimizations_by_month(docks, incidents_by_month, dock_locations_qua
             }
         )
 
-    export_monthly_comparison_results(
-        monthly_results,
-        dock_locations_quantity=dock_locations_quantity,
-    )
     return monthly_results
 
 
@@ -155,14 +147,14 @@ def menu(docks, incidents, incidents_by_month, dock_locations_quantity, max_dock
             if not _validate_k_range(k_min, k_max):
                 continue
             results = no_fixed_locations(docks, incidents, k_min, k_max, dock_locations_quantity, max_dock_coverage_capacity)
-            export_scenario_results("no_fixed", results, incidents)
+            chart_incidents_covered_vs_k(results, scenario_name="no_fixed")
         elif choice == "2":
             k_max = int(input("Enter the maximum total number of docks (including the 8 fixed): "))
             if k_max < len(METROSAFE_DOCK_LOCATIONS):
                 print(f"The maximum must be at least {len(METROSAFE_DOCK_LOCATIONS)} (current MetroSafe docks).")
                 continue
             results = fixed_locations(docks, incidents, k_max, dock_locations_quantity, max_dock_coverage_capacity)
-            export_scenario_results("fixed_metrosafe", results, incidents)
+            chart_incidents_covered_vs_k(results, scenario_name="fixed_metrosafe")
         elif choice == "3":
             k_min = int(input("Enter the starting number of docks (no-fixed scenario): "))
             k_max = int(input("Enter the maximum total number of docks: "))
@@ -173,14 +165,8 @@ def menu(docks, incidents, incidents_by_month, dock_locations_quantity, max_dock
                 continue
             results_no_fixed = no_fixed_locations(docks, incidents, k_min, k_max, dock_locations_quantity, max_dock_coverage_capacity)
             results_fixed = fixed_locations(docks, incidents, k_max, dock_locations_quantity, max_dock_coverage_capacity)
-            export_scenario_results("no_fixed", results_no_fixed, incidents)
-            export_scenario_results("fixed_metrosafe", results_fixed, incidents)
-            export_comparison_results(
-                {
-                    "no_fixed": results_no_fixed,
-                    "fixed_metrosafe": results_fixed,
-                }
-            )
+            chart_incidents_covered_vs_k(results_no_fixed, scenario_name="no_fixed")
+            chart_incidents_covered_vs_k(results_fixed, scenario_name="fixed_metrosafe")
         elif choice == "4":
             compare_optimizations_by_month(
                 docks,

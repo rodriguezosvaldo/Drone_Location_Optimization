@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 import urllib.request
 from pathlib import Path
 
@@ -19,8 +18,6 @@ import folium
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 DEFAULT_LMPD_PATH = PROJECT_ROOT / "output" / "clean_and_geocoded_LMPD_data_2025.xlsx"
 DEFAULT_DOCKS_PATH = PROJECT_ROOT / "output" / "docks_JCPS_MetroSafe.xlsx"

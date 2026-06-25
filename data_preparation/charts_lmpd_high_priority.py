@@ -6,7 +6,6 @@ Data sources:
   - output/clean_and_geocoded_JCPS_schools.xlsx
 """
 from __future__ import annotations
-import sys
 from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -15,8 +14,6 @@ from matplotlib.patches import Patch
 from matplotlib.ticker import MultipleLocator
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 DEFAULT_DATA_PATH = PROJECT_ROOT / "output" / "clean_and_geocoded_LMPD_data_2025.xlsx"
 DEFAULT_JCPS_DATA_PATH = PROJECT_ROOT / "output" / "clean_and_geocoded_JCPS_schools.xlsx"

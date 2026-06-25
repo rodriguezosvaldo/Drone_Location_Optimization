@@ -7,9 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-from src.geocode_addresses import STATE, geocode_addresses
+from .geocode_addresses import STATE, geocode_addresses
 
 
 
@@ -317,7 +315,7 @@ def prepare_jcps_pipeline() -> pd.DataFrame:
 # This function builds the docks workbook joining the geocoded JCPS schools and Dataflights docks
 # Execute it by itself directly in the terminal:
 # python
-# from src.data_preparation import build_docks_jcps_metrosafe
+# from data_preparation.data_preparation import build_docks_jcps_metrosafe
 # build_docks_jcps_metrosafe()
 def build_docks_jcps_metrosafe(
     jcps_xlsx: str | Path = JCPS_OUTPUT_XLSX,

@@ -13,10 +13,7 @@ from src.test_multiple_optimizations import (
     fixed_locations,
     no_fixed_locations,
 )
-from visualizations.charts_optimization_results import (
-    export_comparison_results,
-    export_scenario_results,
-)
+from visualizations.charts_optimization_results import chart_incidents_covered_vs_k
 from visualizations.map_incidents_and_docks import create_map
 
 
@@ -227,7 +224,7 @@ def run_no_fixed_scenario(
         k_max,
         max_dock_coverage_capacity,
     )
-    export_scenario_results("no_fixed", results, session.incidents)
+    chart_incidents_covered_vs_k(results, scenario_name="no_fixed")
     return {
         "scenario": "no_fixed",
         "results": _serialize_results_list(results),
@@ -254,7 +251,7 @@ def run_fixed_scenario(
         k_max,
         max_dock_coverage_capacity,
     )
-    export_scenario_results("fixed_metrosafe", results, session.incidents)
+    chart_incidents_covered_vs_k(results, scenario_name="fixed_metrosafe")
     return {
         "scenario": "fixed_metrosafe",
         "results": _serialize_results_list(results),
@@ -290,14 +287,8 @@ def run_compare_both_scenarios(
         k_max,
         max_dock_coverage_capacity,
     )
-    export_scenario_results("no_fixed", results_no_fixed, session.incidents)
-    export_scenario_results("fixed_metrosafe", results_fixed, session.incidents)
-    export_comparison_results(
-        {
-            "no_fixed": results_no_fixed,
-            "fixed_metrosafe": results_fixed,
-        }
-    )
+    chart_incidents_covered_vs_k(results_no_fixed, scenario_name="no_fixed")
+    chart_incidents_covered_vs_k(results_fixed, scenario_name="fixed_metrosafe")
 
     return {
         "no_fixed": _serialize_results_list(results_no_fixed),

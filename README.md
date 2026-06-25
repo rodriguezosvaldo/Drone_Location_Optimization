@@ -35,16 +35,22 @@ deployed to support faster and more effective emergency response.
 
 ```
 MetroSafe-UofL_Drone_Optimization/
-├── backend/                       # Python API, models, data pipelines
+├── data_preparation/              # Data cleaning, geocoding, and EDA pipelines
+│   ├── data_preparation.py
+│   ├── geocode_addresses.py
+│   ├── charts_lmpd_high_priority.py
+│   ├── map_zipcode_choropleth.py
+│   └── analysis_dataflights_document.py
+├── data/                          # Raw inputs (shared)
+├── output/                        # Cleaned datasets and generated figures (shared)
+├── backend/                       # Python API and optimization application
 │   ├── app/                       # FastAPI web server
 │   │   ├── main.py
 │   │   ├── routes/
 │   │   └── services/
 │   ├── cli/main.py                # Legacy interactive CLI menu
-│   ├── src/                       # Core Python modules
-│   ├── visualizations/
-│   ├── data/                      # Raw inputs
-│   ├── output/                    # Generated outputs
+│   ├── src/                       # Optimization models
+│   ├── visualizations/            # Optimization maps and charts
 │   ├── uploads/                   # User-uploaded Excel files (web UI)
 │   └── requirements.txt
 ├── frontend/                      # Web interface (HTML/CSS/JS)
@@ -84,13 +90,13 @@ pip install -r requirements.txt
 
 | File | Source / purpose |
 |------|------------------|
-| `backend/data/RAW_crime_data_2025.xlsx` | Louisville Metro open data — 2025 crimes/incidents |
-| `backend/data/RAW_Jefferson_County_KY_Schools.csv` | Jefferson County schools (JCPS) |
-| `backend/data/Dataflights.xlsx` | Flight/incident log for PDF reports |
+| `data/RAW_crime_data_2025.xlsx` | Louisville Metro open data — 2025 crimes/incidents |
+| `data/RAW_Jefferson_County_KY_Schools.csv` | Jefferson County schools (JCPS) |
+| `data/Dataflights.xlsx` | Flight/incident log for PDF reports |
 
 Reference portal: [Louisville Metro Open Data](https://data.louisvilleky.gov/).
 
-Place raw files in `backend/data/` before running pipelines. Clean, geocoded Excel outputs are written to `backend/output/`.
+Place raw files in `data/` before running preparation pipelines. Clean, geocoded Excel outputs are written to `output/`. The web app and optimization CLI read processed files from `output/` by default.
 
 ## Usage
 
@@ -112,11 +118,10 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. The interfa
 
 ### 1. Cleaning and geocoding (LMPD and/or JCPS)
 
-Run from the `backend/` directory:
+Run from the project root:
 
 ```powershell
-cd backend
-python -m src.data_preparation
+python -m data_preparation.data_preparation
 ```
 
 Interactive menu: `1` = LMPD, `2` = JCPS, `3` = both.
@@ -124,40 +129,38 @@ Interactive menu: `1` = LMPD, `2` = JCPS, `3` = both.
 Non-interactive (CLI):
 
 ```powershell
-python -m src.data_preparation --dataset lmpd
-python -m src.data_preparation --dataset jcps
-python -m src.data_preparation --dataset both
+python -m data_preparation.data_preparation --dataset lmpd
+python -m data_preparation.data_preparation --dataset jcps
+python -m data_preparation.data_preparation --dataset both
 ```
 
 **LMPD — key cleaning rules:**
 
 - Removes duplicates by `incident_number`, rows without a usable address, and administrative columns.
 - Normalizes block-style addresses (removes `BLOCK` from `block_address`).
-- By default keeps only **High** priority incidents per NIBRS mapping (see comments in `LMPD_data_cleaning` in `src/data_preparation.py` to include Medium/Low).
+- By default keeps only **High** priority incidents per NIBRS mapping (see comments in `LMPD_data_cleaning` in `data_preparation/data_preparation.py` to include Medium/Low).
 - Geocodes and drops rows missing `latitude` / `longitude`.
 
 **Outputs:**
 
-- `backend/output/clean_and_geocoded_LMPD_data_2025.xlsx`
-- `backend/output/clean_and_geocoded_JCPS_schools.xlsx`
+- `output/clean_and_geocoded_LMPD_data_2025.xlsx`
+- `output/clean_and_geocoded_JCPS_schools.xlsx`
 
 Standalone geocoding (input already cleaned with `clean_address`, `clean_street`, `city`, `zip_code`):
 
 ```powershell
-cd backend
-python -m src.geocode_addresses --input path\to\input.xlsx --output output\output.xlsx
+python -m data_preparation.geocode_addresses --input path\to\input.xlsx --output output\output.xlsx
 ```
 
 ### 2. LMPD and JCPS visualizations
 
-Requires geocoded Excel files in `backend/output/`:
+Requires geocoded Excel files in `output/`:
 
 ```powershell
-cd backend
-python -m visualizations.charts_lmpd_high_priority
+python -m data_preparation.charts_lmpd_high_priority
 ```
 
-Writes to `backend/output/figures/`:
+Writes to `output/figures/`:
 
 - `lmpd_distribution_by_month.png`
 - `lmpd_distribution_by_hour.png`
@@ -175,7 +178,7 @@ Expected menu flow:
 
 1. Create `Dock` and `Incident` objects from Excel files with coordinates.
 2. Run `maximize_incidents_covered` (up to `DOCK_LOCATIONS_QUANTITY`).
-3. Open HTML map at `backend/output/optimized_map.html`.
+3. Open HTML map at `output/optimized_map.html`.
 
 **Coverage parameters** (`src/docks_and_incidents.py`):
 
@@ -187,8 +190,7 @@ Expected menu flow:
 ### 4. Dataflights analysis (PDF report)
 
 ```powershell
-cd backend
-python -m src.analysis_dataflights_document
+python -m data_preparation.analysis_dataflights_document
 ```
 
 Adjust the data path in the script if you use CSV instead of `data/Dataflights.xlsx`.
@@ -199,12 +201,12 @@ Adjust the data path in the script if you use CSV instead of `data/Dataflights.x
 flowchart LR
   RAW_LMPD[RAW_crime_data_2025.xlsx]
   RAW_JCPS[RAW_Jefferson_County_KY_Schools.csv]
-  PREP[data_preparation.py]
+  PREP[data_preparation/]
   GEO[geocode_addresses.py]
   OUT_LMPD[clean_and_geocoded_LMPD_data_2025.xlsx]
   OUT_JCPS[clean_and_geocoded_JCPS_schools.xlsx]
   CHARTS[charts_lmpd_high_priority.py]
-  OPT[optimization_model.py]
+  APP[backend optimization app]
 
   RAW_LMPD --> PREP
   RAW_JCPS --> PREP
@@ -213,5 +215,5 @@ flowchart LR
   GEO --> OUT_JCPS
   OUT_LMPD --> CHARTS
   OUT_JCPS --> CHARTS
-  OUT_LMPD --> OPT
+  OUT_LMPD --> APP
 ```
