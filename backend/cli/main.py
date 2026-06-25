@@ -8,7 +8,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 os.chdir(BACKEND_ROOT)
 
 from src.docks_and_incidents import create_docks_and_incidents, METROSAFE_DOCK_LOCATIONS
-from src.optimization_model import maximize_incidents_covered, minimize_docks_used, basic_minimize_docks_used
+from src.optimization_model import maximize_incidents_covered, minimize_docks_used
 from src.test_multiple_optimizations import test_multiple_optimizations
 from visualizations.map_incidents_and_docks import create_map
 
@@ -30,7 +30,6 @@ def menu():
         print("******** Optimization Models ********")
         print("2. Maximize the number of incidents covered by the docks")
         print("3. Minimize the number of docks covering 100% of the incidents")
-        print("33. Basic minimize the number of docks covering 100% of the incidents")
         print("4. Test multiple optimizations")
         print("5. Exit")
         print("---------------------------------------------------")
@@ -78,25 +77,11 @@ def menu():
             try:
                 if docks is None or incidents is None:
                     raise Exception("Create docks and incidents first to run the optimization model")
-                dock_locations_quantity = int(input("Enter the number of dock locations available: "))
-                max_dock_coverage_capacity = int(input("Enter the maximum number of incidents a dock can cover: "))
-                minimize_docks_used(docks, incidents, dock_locations_quantity, max_dock_coverage_capacity)
+                minimize_docks_used(docks, incidents)
             except Exception as e:
                 print("Be sure to create docks and incidents before running the optimization model")
                 print(f"Error running the optimization model: {e}")
-                continue
-        # Do not use this for final version!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-        # This is only for testing purposes!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
-        elif choice == "33":
-            try:
-                if docks is None or incidents is None:
-                    raise Exception("Create docks and incidents first to run the optimization model")
-                max_dock_coverage_capacity = int(input("Enter the maximum number of incidents a dock can cover: "))
-                basic_minimize_docks_used(docks, incidents, max_dock_coverage_capacity)
-            except Exception as e:
-                print("Be sure to create docks and incidents before running the optimization model")
-                print(f"Error running the optimization model: {e}")
-                continue
+                continue     
         elif choice == "4":
             if docks is None or incidents is None:
                 print("Create docks and incidents first (option 1).")
@@ -107,7 +92,7 @@ def menu():
                 docks, incidents, incidents_by_month, dock_locations_quantity, max_dock_coverage_capacity
             )
             continue
-        elif choice == "4":
+        elif choice == "5":
             break
         else:
             print("Invalid choice")
