@@ -61,12 +61,28 @@ class Incident:
 def distance(dock, incident):
     delta_latitude_miles = np.abs(incident.latitude - dock.latitude) * 69
     mean_latitude = (incident.latitude + dock.latitude) / 2
-    delta_longitude_miles = np.abs(incident.longitude - dock.longitude) * math.cos(mean_latitude) * 69
+    delta_longitude_miles = np.abs(incident.longitude - dock.longitude) * math.cos(math.radians(mean_latitude)) * 69
     return np.sqrt(delta_latitude_miles**2 + delta_longitude_miles**2)
 
 # Returns True if the incident is within the effective radius of the dock, False otherwise
 def coverage(dock, incident):
     return distance(dock, incident) <= dock.effective_radius
+
+def specific_area_docks_and_incidents(docks, incidents):
+    all_docks_latitudes = [d.latitude for d in docks]
+    all_docks_longitudes = [d.longitude for d in docks]
+    effective_radius = max(d.effective_radius for d in docks)
+    effective_radius_degrees = effective_radius * 69 # miles to degrees
+
+    latitude_closest_to_ecuador = min(abs(lat) for lat in all_docks_latitudes) - effective_radius_degrees
+    latitude_farthest_from_ecuador = max(abs(lat) for lat in all_docks_latitudes) + effective_radius_degrees
+    longitude_closest_to_greenwich = min(abs(lon) for lon in all_docks_longitudes) - effective_radius_degrees
+    longitude_farthest_from_greenwich = max(abs(lon) for lon in all_docks_longitudes) + effective_radius_degrees
+
+    specific_area_docks = [dock for dock in docks if dock.latitude >= latitude_closest_to_ecuador and dock.latitude <= latitude_farthest_from_ecuador and dock.longitude >= longitude_closest_to_greenwich and dock.longitude <= longitude_farthest_from_greenwich]
+    specific_area_incidents = [incident for incident in incidents if incident.latitude >= latitude_closest_to_ecuador and incident.latitude <= latitude_farthest_from_ecuador and incident.longitude >= longitude_closest_to_greenwich and incident.longitude <= longitude_farthest_from_greenwich]
+
+    return specific_area_docks, specific_area_incidents
 
 # Create docks and incidents objects from data
 def get_docks(excel_file_path):

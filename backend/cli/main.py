@@ -30,7 +30,7 @@ def menu():
         print("******** Optimization Models ********")
         print("2. Maximize the number of incidents covered by the docks")
         print("3. Minimize the number of docks covering 100% of the incidents")
-        print("4. Test multiple optimizations")
+        
         print("5. Exit")
         print("---------------------------------------------------")
         choice = input("\nEnter your choice: ")
