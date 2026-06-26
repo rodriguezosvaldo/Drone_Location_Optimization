@@ -12,7 +12,7 @@ MAX_MISSION_TIME = 1800 # 1800 seconds = 30 minutes (https://www.skydio.com/x10/
 BATTERY_RECHARGE_TIME = 3600 # 3600 seconds = 1 hour (https://www.skydio.com/x10/technical-specs using charger 230W)
 CICLE_TIME = MAX_MISSION_TIME + BATTERY_RECHARGE_TIME # 1800 + 3600 = 5400 seconds = 90 minutes
 DRONE_DISPOSITION_TIME = 57600 # 57600 seconds = 16 hours (Two shifts of 8 hours each)
-DRONE_COVERAGE_CAPACITY = DRONE_DISPOSITION_TIME / CICLE_TIME # 57600 / 5400 = 10.66 = 10 incidents per day
+DRONE_COVERAGE_CAPACITY = int(DRONE_DISPOSITION_TIME / CICLE_TIME) # 57600 / 5400 = 10.66 = 10 incidents per day
 
 METROSAFE_DOCK_LOCATIONS = [
     "1510 South 6th Street",
@@ -26,13 +26,14 @@ METROSAFE_DOCK_LOCATIONS = [
 ]
 
 class Dock:
-    def __init__(self, name, latitude, longitude, drone_speed, response_time, drone_coverage_capacity):
+    def __init__(self, name, latitude, longitude):
         self.name = name
         self.latitude = latitude
         self.longitude = longitude
-        self.drone_speed = drone_speed
-        self.response_time = response_time
-        self.drone_coverage_capacity = drone_coverage_capacity
+        self.drone_speed = DRONE_SPEED
+        self.response_time = RESPONSE_TIME
+        self.drone_coverage_capacity = DRONE_COVERAGE_CAPACITY
+        self.dock_weight = 1
         self.effective_radius = self.drone_speed * self.response_time # miles
 
     def incidents_covered(self, incidents):
@@ -89,7 +90,7 @@ def get_docks(excel_file_path):
     docks = []
     docks_data = pd.read_excel(excel_file_path)
     for index, row in docks_data.iterrows():
-        dock = Dock(row['name'], row['latitude'], row['longitude'], DRONE_SPEED, RESPONSE_TIME, DRONE_COVERAGE_CAPACITY)
+        dock = Dock(row['name'], row['latitude'], row['longitude'])
         docks.append(dock)
     print(f"Docks created: {len(docks)}")
     return docks

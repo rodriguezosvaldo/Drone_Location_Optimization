@@ -28,10 +28,12 @@ def menu():
         print("---------------------------------------------------")
         print("1. Create docks and incidents from data")
         print("******** Optimization Models ********")
-        print("2. Maximize the number of incidents covered by the docks")
-        print("3. Minimize the number of docks covering 100% of the incidents")
-        
-        print("5. Exit")
+        print("2. Maximize the number of incidents covered")
+        print("3. Maximize the number of incidents covered by specific docks")
+        print("4. Specific area: Maximize the number of incidents covered")
+        print("5. Specific area: Maximize the number of incidents covered by specific docks")
+        print("9. Minimize the number of docks covering 100% of the incidents")
+        print("0. Exit")
         print("---------------------------------------------------")
         choice = input("\nEnter your choice: ")
 
@@ -50,30 +52,24 @@ def menu():
             try:
                 if docks is None or incidents is None:
                     raise Exception("Create docks and incidents first to run the optimization model")
-                optimize_fixed_locations = input("Do you want to optimize the fixed locations? (y/n): ").lower()
-                if optimize_fixed_locations == "y":
-                    fixed_docks = [d for d in docks if d.name in METROSAFE_DOCK_LOCATIONS]
-                    dock_locations_quantity = int(input("Enter the number of dock locations available: "))
-                    max_dock_coverage_capacity = int(input("Enter the maximum number of incidents a dock can cover: "))
-                    maximize_incidents_covered(
-                        fixed_docks, incidents, dock_locations_quantity, max_dock_coverage_capacity
-                    )
-                elif optimize_fixed_locations == "n":
-                    dock_locations_quantity = int(input("Enter the number of dock locations available: "))
-                    max_dock_coverage_capacity = int(input("Enter the maximum number of incidents a dock can cover: "))
-                    maximize_incidents_covered(
-                        docks, incidents, dock_locations_quantity, max_dock_coverage_capacity
-                    )
-                else:
-                    print("Invalid choice")
-                    continue
+                dock_locations_quantity = int(input("Enter the number of dock locations available (Budget constraint): ")) # Budget constraint
+                maximize_incidents_covered(docks, incidents, dock_locations_quantity)      
             except Exception as e:
                 print("Be sure to create docks and incidents before running the optimization model")
                 print(f"Error running the optimization model: {e}")
                 continue
-        # Do not use this for final version!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-        # This is only for testing purposes!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
         elif choice == "3":
+            try:
+                if docks is None or incidents is None:
+                    raise Exception("Create docks and incidents first to run the optimization model")
+                specific_docks = [d for d in docks if d.name in METROSAFE_DOCK_LOCATIONS]
+                dock_locations_quantity = int(input("Enter the number of dock locations available (Budget constraint): ")) # Budget constraint
+                maximize_incidents_covered(docks, incidents, dock_locations_quantity, specific_docks)      
+            except Exception as e:
+                print("Be sure to create docks and incidents before running the optimization model")
+                print(f"Error running the optimization model: {e}")
+                continue
+        elif choice == "9":
             try:
                 if docks is None or incidents is None:
                     raise Exception("Create docks and incidents first to run the optimization model")
@@ -92,7 +88,7 @@ def menu():
                 docks, incidents, incidents_by_month, dock_locations_quantity, max_dock_coverage_capacity
             )
             continue
-        elif choice == "5":
+        elif choice == "0":
             break
         else:
             print("Invalid choice")

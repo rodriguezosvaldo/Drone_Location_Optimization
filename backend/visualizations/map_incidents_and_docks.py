@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import folium
-from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS, coverage
+from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = BACKEND_ROOT.parent / "output"
@@ -38,7 +38,7 @@ def _add_incident_marker(map, incident, color):
     ).add_to(map)
 
 
-def create_map(docks, incidents, map_name, incidents_covered):
+def create_map(docks, incidents, map_name, incidents_covered, dock_assignments=None):
     try:
         map = folium.Map(
             location=[38.2527, -85.7585],
@@ -56,7 +56,10 @@ def create_map(docks, incidents, map_name, incidents_covered):
 
         for dock in docks:
             dock_radius = dock.effective_radius*1609.34 # convert miles to meters to be able to use the folium library
-            covered_incidents, total_distance_to_covered_incidents = dock.incidents_covered(incidents_covered)
+            if dock_assignments is not None:
+                covered_incidents = dock_assignments.get(dock, [])
+            else:
+                covered_incidents, _ = dock.incidents_covered(incidents_covered)
             border_color, fill_color = _dock_colors(dock)
             folium.Circle(
                 location=[dock.latitude, dock.longitude],
