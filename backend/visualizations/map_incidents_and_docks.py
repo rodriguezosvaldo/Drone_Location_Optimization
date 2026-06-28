@@ -39,6 +39,7 @@ def _add_incident_marker(map, incident, color):
 
 
 def create_map(docks, incidents, map_name, incidents_covered, dock_assignments=None):
+    print(f"Creating map: {map_name}...")
     try:
         map = folium.Map(
             location=[38.2527, -85.7585],
