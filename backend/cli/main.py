@@ -17,7 +17,7 @@ INCIDENTS_EXCEL_FILE_PATH = str(PROJECT_ROOT / "output" / "clean_and_geocoded_LM
 
 
 
-def optimization_menu(docks, incidents_in_one_day):
+def optimization_menu(docks, incidents_in_one_day, latitude_closest_to_ecuador=None, latitude_farthest_from_ecuador=None, longitude_closest_to_greenwich=None, longitude_farthest_from_greenwich=None):
     while True:
         print("\n                    Optimization Menu")
         print("---------------------------------------------------")
@@ -37,6 +37,10 @@ def optimization_menu(docks, incidents_in_one_day):
                 f"optimized_map_{dock_locations_quantity}_docks",
                 results["incidents_covered"],
                 results["dock_assignments"],
+                latitude_closest_to_ecuador=latitude_closest_to_ecuador,
+                latitude_farthest_from_ecuador=latitude_farthest_from_ecuador,
+                longitude_closest_to_greenwich=longitude_closest_to_greenwich,
+                longitude_farthest_from_greenwich=longitude_farthest_from_greenwich,
             )
             map_file = Path(__file__).resolve().parent.parent.parent / "output" / f"optimized_map_{dock_locations_quantity}_docks.html"
             if map_file.exists():
@@ -56,6 +60,10 @@ def optimization_menu(docks, incidents_in_one_day):
                         f"increase_budget_{dock_locations_quantity}_docks",
                         results["incidents_covered"],
                         results["dock_assignments"],
+                        latitude_closest_to_ecuador=latitude_closest_to_ecuador,
+                        latitude_farthest_from_ecuador=latitude_farthest_from_ecuador,
+                        longitude_closest_to_greenwich=longitude_closest_to_greenwich,
+                        longitude_farthest_from_greenwich=longitude_farthest_from_greenwich,
                     )
                     map_file = Path(__file__).resolve().parent.parent.parent / "output" / f"increase_budget_{dock_locations_quantity}_docks.html"
                     if map_file.exists():
@@ -80,6 +88,10 @@ def optimization_menu(docks, incidents_in_one_day):
                 f"specific_docks_optimized_map_{dock_locations_quantity}_docks",
                 results["incidents_covered"],
                 results["dock_assignments"],
+                latitude_closest_to_ecuador=latitude_closest_to_ecuador,
+                latitude_farthest_from_ecuador=latitude_farthest_from_ecuador,
+                longitude_closest_to_greenwich=longitude_closest_to_greenwich,
+                longitude_farthest_from_greenwich=longitude_farthest_from_greenwich,
             )
             map_file = Path(__file__).resolve().parent.parent.parent / "output" / f"specific_docks_optimized_map_{dock_locations_quantity}_docks.html"
             if map_file.exists():
@@ -99,6 +111,10 @@ def optimization_menu(docks, incidents_in_one_day):
                         f"specific_docks_increase_budget_{dock_locations_quantity}_docks",
                         results["incidents_covered"],
                         results["dock_assignments"],
+                        latitude_closest_to_ecuador=latitude_closest_to_ecuador,
+                        latitude_farthest_from_ecuador=latitude_farthest_from_ecuador,
+                        longitude_closest_to_greenwich=longitude_closest_to_greenwich,
+                        longitude_farthest_from_greenwich=longitude_farthest_from_greenwich,
                     )
                     map_file = Path(__file__).resolve().parent.parent.parent / "output" / f"specific_docks_increase_budget_{dock_locations_quantity}_docks.html"
                     if map_file.exists():
@@ -161,7 +177,7 @@ def menu():
                 longitude_closest_to_greenwich=longitude_closest_to_greenwich,
                 longitude_farthest_from_greenwich=longitude_farthest_from_greenwich,
             )
-            optimization_menu(specific_area_docks, specific_area_incidents)
+            optimization_menu(specific_area_docks, specific_area_incidents, latitude_closest_to_ecuador, latitude_farthest_from_ecuador, longitude_closest_to_greenwich, longitude_farthest_from_greenwich)
         elif choice == "0":
             break
         else:

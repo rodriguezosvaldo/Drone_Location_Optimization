@@ -50,25 +50,31 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
                 gp.quicksum(z[d, i] for i in coverable_incidents)
                 <= d.drone_coverage_capacity * x[d]
             )
-        model.addConstr(
-            gp.quicksum(x[d] for d in docks) <= dock_locations_quantity) # The number of docks must be less than or equal to the number of dock locations available
+    model.addConstr(
+        gp.quicksum(x[d] for d in docks) <= dock_locations_quantity) # The number of docks must be less than or equal to the number of dock locations available
     #REVISAR ESTE BLOQUE===========================================================================
 
     # Objective function: Maximize the number of incidents covered
     # Higher priority = more important
     def max_coverage_first(model):
-        # Maximize the number of incidents covered
+        # First priority: maximize the number of incidents covered
         model.setObjectiveN(
             gp.quicksum(y[i] for i in incidents),
-            index=0, priority=1, abstol=1e-6, reltol=0,
-            name="coverage"
+            index=0, priority=2, abstol=1e-6, reltol=0,
+            name="maximize_coverage"
+        )
+        # Second priority: minimize docks
+        model.setObjectiveN(
+            -gp.quicksum(x[d] for d in docks),
+            index=1, priority=1, abstol=1e-6, reltol=0,
+            name="minimize_docks"
         )
 
-        # Prefer assignments with lower distance to assigned incidents
+        # Third priority: minimize distance to assigned incidents
         model.setObjectiveN(
             -gp.quicksum(pair_distance[d, i] * z[d, i] for d, i in assignable_pairs),
-            index=1, priority=0,
-            name="distance"
+            index=2, priority=0,
+            name="minimize_distance"
         )
 
         model.ModelSense = gp.GRB.MAXIMIZE
@@ -78,25 +84,33 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
         remaining_docks = [d for d in docks if d not in specific_docks]
         remaining_pairs = [(d, i) for d, i in assignable_pairs if d in remaining_docks]
         specific_pairs = [(d, i) for d, i in assignable_pairs if d in specific_docks]
-        # First prioritize specific docks
+        # First priority: prioritize specific docks
         model.setObjectiveN(
             gp.quicksum(x[d] for d in specific_docks),
-            index=0, priority=2, abstol=1e-6, reltol=0,
+            index=0, priority=3, abstol=1e-6, reltol=0,
             name="specific_docks"
         )
 
-        # Maximize the number of incidents covered
+        # Second priority: maximize the number of incidents covered
         model.setObjectiveN(
             gp.quicksum(y[i] for i in incidents),
-            index=1, priority=1, abstol=1e-6, reltol=0,
-            name="coverage"
+            index=1, priority=2, abstol=1e-6, reltol=0,
+            name="maximize_coverage"
         )
 
-        # Prefer assignments with lower distance to assigned incidents
+        # Third priority: minimize docks
+        model.setObjectiveN(
+            -gp.quicksum(x[d] for d in docks),
+            index=2, priority=1, abstol=1e-6, reltol=0,
+            name="minimize_docks"
+        )
+
+
+        # Fourth priority: minimize distance to assigned incidents
         model.setObjectiveN(
             -gp.quicksum(pair_distance[d, i] * z[d, i] for d, i in remaining_pairs) - gp.quicksum(pair_distance[d, i] * z[d, i] for d, i in specific_pairs),
-            index=2, priority=0,
-            name="distance"
+            index=3, priority=0,
+            name="minimize_distance"
         )
         model.ModelSense = gp.GRB.MAXIMIZE
         return model
