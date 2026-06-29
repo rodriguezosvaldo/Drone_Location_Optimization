@@ -71,22 +71,34 @@ def coverage(dock, incident):
 
 # Returns the docks and incidents within a specific area around the specific docks
 def specific_area_docks_and_incidents(docks, incidents):
-    EXTRA_DISTANCE_DEGREES = 0.016 # 0.016 degrees = 1 mile to get an area slightly larger than the effective radius
-    all_docks_latitudes = [d.latitude for d in docks]
-    all_docks_longitudes = [d.longitude for d in docks]
-    effective_radius = max(d.effective_radius for d in docks)
-    effective_radius_degrees = effective_radius * 69 # miles to degrees
+    EXTRA_DISTANCE_DEGREES = 0.014 # 0.014 degrees = 1 mile to get an area slightly larger than the effective radius
+    specific_docks = [d for d in docks if d.name in METROSAFE_DOCK_LOCATIONS]
+    all_docks_latitudes = [d.latitude for d in specific_docks]
+    all_docks_longitudes = [d.longitude for d in specific_docks]
+    effective_radius = max(d.effective_radius for d in specific_docks)
+    effective_radius_degrees = effective_radius / 69 # miles to degrees
     
 
-    latitude_closest_to_ecuador = min(abs(lat) for lat in all_docks_latitudes) - (effective_radius_degrees + EXTRA_DISTANCE_DEGREES)
-    latitude_farthest_from_ecuador = max(abs(lat) for lat in all_docks_latitudes) + (effective_radius_degrees + EXTRA_DISTANCE_DEGREES)
-    longitude_closest_to_greenwich = min(abs(lon) for lon in all_docks_longitudes) - (effective_radius_degrees + EXTRA_DISTANCE_DEGREES)
-    longitude_farthest_from_greenwich = max(abs(lon) for lon in all_docks_longitudes) + (effective_radius_degrees + EXTRA_DISTANCE_DEGREES)
+    extra_distance = effective_radius_degrees + EXTRA_DISTANCE_DEGREES
+    latitude_closest_to_ecuador = min(all_docks_latitudes) - extra_distance
+    latitude_farthest_from_ecuador = max(all_docks_latitudes) + extra_distance
+    longitude_closest_to_greenwich = min(all_docks_longitudes) - extra_distance
+    longitude_farthest_from_greenwich = max(all_docks_longitudes) + extra_distance
 
     specific_area_docks = [dock for dock in docks if dock.latitude >= latitude_closest_to_ecuador and dock.latitude <= latitude_farthest_from_ecuador and dock.longitude >= longitude_closest_to_greenwich and dock.longitude <= longitude_farthest_from_greenwich]
-    specific_area_incidents = [incident for incident in incidents if incident.latitude >= latitude_closest_to_ecuador and incident.latitude <= latitude_farthest_from_ecuador and incident.longitude >= longitude_closest_to_greenwich and incident.longitude <= longitude_farthest_from_greenwich]
+    specific_area_incidents = [incident for incident in incidents if incident.latitude >= latitude_closest_to_ecuador and incident.latitude <= latitude_farthest_from_ecuador and incident.longitude >= longitude_closest_to_greenwich and incident.longitude <= longitude_farthest_from_greenwich] # From all incidents, get only the ones within the specific area
+    specific_area_incidents = get_incidents_by_date(specific_area_incidents) # Get the incidents in one day for the specific area
+    print(f"Specific area docks: {len(specific_area_docks)}")
+    print(f"Specific area incidents: {len(specific_area_incidents)}")
 
-    return specific_area_docks, specific_area_incidents
+    return (
+        specific_area_docks,
+        specific_area_incidents,
+        latitude_closest_to_ecuador,
+        latitude_farthest_from_ecuador,
+        longitude_closest_to_greenwich,
+        longitude_farthest_from_greenwich,
+    )
 
 # Create docks and incidents objects from data
 def get_docks(excel_file_path):

@@ -11,6 +11,7 @@ METROSAFE_DOCK_BORDER_COLOR = "#1B5E20"
 METROSAFE_DOCK_FILL_COLOR = "#A5D6A7"
 INCIDENT_COVERED_COLOR = "#d62728"
 INCIDENT_UNCOVERED_COLOR = "#6A1B9A"
+BOUNDARY_LINE_COLOR = "#E65100"
 
 
 def _dock_colors(dock):
@@ -37,15 +38,92 @@ def _add_incident_marker(map, incident, color):
         ),
     ).add_to(map)
 
+def _add_area_boundary_lines(
+    map,
+    latitude_closest_to_ecuador,
+    latitude_farthest_from_ecuador,
+    longitude_closest_to_greenwich,
+    longitude_farthest_from_greenwich,
+):
+    line_style = dict(color=BOUNDARY_LINE_COLOR, weight=2, dash_array="8, 6")
 
-def create_map(docks, incidents, map_name, incidents_covered, dock_assignments=None):
+    folium.PolyLine(
+        locations=[
+            [latitude_closest_to_ecuador, longitude_closest_to_greenwich],
+            [latitude_closest_to_ecuador, longitude_farthest_from_greenwich],
+        ],
+        popup=folium.Popup(f"{latitude_closest_to_ecuador:.6f}", max_width=150),
+        tooltip=f"{latitude_closest_to_ecuador:.6f}",
+        **line_style,
+    ).add_to(map)
+
+    folium.PolyLine(
+        locations=[
+            [latitude_farthest_from_ecuador, longitude_closest_to_greenwich],
+            [latitude_farthest_from_ecuador, longitude_farthest_from_greenwich],
+        ],
+        popup=folium.Popup(f"{latitude_farthest_from_ecuador:.6f}", max_width=150),
+        tooltip=f"{latitude_farthest_from_ecuador:.6f}",
+        **line_style,
+    ).add_to(map)
+
+    folium.PolyLine(
+        locations=[
+            [latitude_closest_to_ecuador, longitude_closest_to_greenwich],
+            [latitude_farthest_from_ecuador, longitude_closest_to_greenwich],
+        ],
+        popup=folium.Popup(f"{longitude_closest_to_greenwich:.6f}", max_width=150),
+        tooltip=f"{longitude_closest_to_greenwich:.6f}",
+        **line_style,
+    ).add_to(map)
+
+    folium.PolyLine(
+        locations=[
+            [latitude_closest_to_ecuador, longitude_farthest_from_greenwich],
+            [latitude_farthest_from_ecuador, longitude_farthest_from_greenwich],
+        ],
+        popup=folium.Popup(f"{longitude_farthest_from_greenwich:.6f}", max_width=150),
+        tooltip=f"{longitude_farthest_from_greenwich:.6f}",
+        **line_style,
+    ).add_to(map)
+
+def create_map(
+    docks,
+    incidents,
+    map_name,
+    incidents_covered,
+    dock_assignments=None,
+    latitude_closest_to_ecuador=None,
+    latitude_farthest_from_ecuador=None,
+    longitude_closest_to_greenwich=None,
+    longitude_farthest_from_greenwich=None,
+):
     print(f"Creating map: {map_name}...")
     try:
+        has_area_bounds = all(
+            value is not None
+            for value in (
+                latitude_closest_to_ecuador,
+                latitude_farthest_from_ecuador,
+                longitude_closest_to_greenwich,
+                longitude_farthest_from_greenwich,
+            )
+        )
+
         map = folium.Map(
             location=[38.2527, -85.7585],
             zoom_start=12,
             tiles="CartoDB Positron",
         )
+
+        if has_area_bounds:
+            _add_area_boundary_lines(
+                map,
+                latitude_closest_to_ecuador,
+                latitude_farthest_from_ecuador,
+                longitude_closest_to_greenwich,
+                longitude_farthest_from_greenwich,
+            )
 
         uncovered_incidents = [incident for incident in incidents if incident not in incidents_covered]
 

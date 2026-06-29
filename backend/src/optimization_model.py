@@ -130,19 +130,6 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
         "dock_assignments": dock_assignments,
     }
 
-    # Visualize map
-
-    create_map(
-        selected_docks,
-        incidents,
-        "optimized_map",
-        incidents_covered,
-        dock_assignments,
-    )
-    map_file = Path(__file__).resolve().parent.parent.parent / "output" / "optimized_map.html"
-    if map_file.exists():
-        webbrowser.open(map_file.resolve().as_uri())
-
     return results
 
 def minimize_docks_used(docks, incidents):
