@@ -3,8 +3,10 @@ from src.docks_and_incidents import distance
 from visualizations.map_incidents_and_docks import create_map
 from pathlib import Path
 import webbrowser
+import math
 
 _TIME_LIMIT_SECONDS = 300 # 300 seconds = 5 minutes time limit for the solver
+PERCENTAGE_INCIDENTS_COVERED = 0.7 # 50% of incidents must be covered
 
 def _precompute_coverage(docks, incidents):
     incident_to_docks = {} # List of docks that cover the incident
@@ -21,27 +23,30 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
     model = gp.Model("maximize_incidents_covered")
     model.Params.TimeLimit = _TIME_LIMIT_SECONDS
 
-    x = model.addVars(docks, vtype=gp.GRB.BINARY, name="x")
-    y = model.addVars(incidents, vtype=gp.GRB.BINARY, name="y")
+    # Constraints--------------------------------------------------------------------------------
+    x = model.addVars(docks, vtype=gp.GRB.BINARY, name="x") # Binary variable indicating if a dock is open
+    y = model.addVars(incidents, vtype=gp.GRB.BINARY, name="y") # Binary variable indicating if an incident is covered by a dock
 
+    max_incidents = math.floor(PERCENTAGE_INCIDENTS_COVERED * len(incidents)) # floor to round down to the nearest integer and ceil to round up to the nearest integer
+    model.addConstr(gp.quicksum(y[i] for i in incidents) <= max_incidents) # The number of incidents covered must be less than or equal to the maximum number of incidents that can be covered
+    
     for i in incidents:
-        covering_docks = incident_to_docks[i]
+        covering_docks = incident_to_docks[i] # Docks that cover the incident
         if covering_docks:
             model.addConstr(gp.quicksum(x[d] for d in covering_docks) >= y[i]) # Each incident must be covered by at least one dock
         else:
             model.addConstr(y[i] == 0) # If an incident is not covered by any dock, it must be set to 0
 
     
-    #REVISAR ESTE BLOQUE===========================================================================
-    assignable_pairs = [(d, i) for i in incidents for d in incident_to_docks[i]]
-    pair_distance = {(d, i): distance(d, i) for d, i in assignable_pairs}
-    z = model.addVars(assignable_pairs, vtype=gp.GRB.BINARY, name="z")
+    assignable_pairs = [(d, i) for i in incidents for d in incident_to_docks[i]] # Pairs of docks and incidents that are in range of each other
+    pair_distance = {(d, i): distance(d, i) for d, i in assignable_pairs} # Distance between each dock and incident
+    z = model.addVars(assignable_pairs, vtype=gp.GRB.BINARY, name="z") # Binary variable indicating if a dock covers an incident
 
     for i in incidents:
-        model.addConstr(gp.quicksum(z[d, i] for d in incident_to_docks[i]) >= y[i])
+        model.addConstr(gp.quicksum(z[d, i] for d in incident_to_docks[i]) >= y[i]) # Each incident must be covered by at least one dock
 
     for d, i in assignable_pairs:
-        model.addConstr(z[d, i] <= x[d])
+        model.addConstr(z[d, i] <= x[d]) # Each dock must be open to cover an incident
 
     for d in docks:
         coverable_incidents = dock_to_incidents[d]
@@ -49,13 +54,13 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
             model.addConstr(
                 gp.quicksum(z[d, i] for i in coverable_incidents)
                 <= d.drone_coverage_capacity * x[d]
-            )
+            ) # The number of incidents covered by a dock must be less than or equal to the maximum number of incidents a dock can cover
     model.addConstr(
-        gp.quicksum(x[d] for d in docks) <= dock_locations_quantity) # The number of docks must be less than or equal to the number of dock locations available
-    #REVISAR ESTE BLOQUE===========================================================================
+        gp.quicksum(x[d] for d in docks) <= dock_locations_quantity) # The number of docks used must be less than or equal to the number of dock locations available
+    # End Constraints--------------------------------------------------------------------------------
+    
 
-    # Objective function: Maximize the number of incidents covered
-    # Higher priority = more important
+    # Objective functions: Maximize the number of incidents covered
     def max_coverage_first(model):
         # First priority: maximize the number of incidents covered
         model.setObjectiveN(
@@ -105,7 +110,6 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
             name="minimize_docks"
         )
 
-
         # Fourth priority: minimize distance to assigned incidents
         model.setObjectiveN(
             -gp.quicksum(pair_distance[d, i] * z[d, i] for d, i in remaining_pairs) - gp.quicksum(pair_distance[d, i] * z[d, i] for d, i in specific_pairs),
@@ -145,6 +149,12 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
     }
 
     return results
+
+
+
+
+
+
 
 def minimize_docks_used(docks, incidents):
     model = gp.Model("minimize_docks_used")
