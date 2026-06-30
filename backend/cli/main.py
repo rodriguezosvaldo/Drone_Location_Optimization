@@ -9,8 +9,9 @@ sys.path.insert(0, str(BACKEND_ROOT))
 os.chdir(BACKEND_ROOT)
 
 from src.docks_and_incidents import create_docks_and_incidents, specific_area_docks_and_incidents, METROSAFE_DOCK_LOCATIONS
-from src.optimization_model import maximize_incidents_covered, minimize_docks_used
+from src.optimization_model import maximize_incidents_covered
 from visualizations.map_incidents_and_docks import create_map
+from visualizations.charts_optimization_results import chart_incidents_covered_vs_k
 
 DOCKS_EXCEL_FILE_PATH = str(PROJECT_ROOT / "output" / "docks_JCPS_MetroSafe.xlsx")
 INCIDENTS_EXCEL_FILE_PATH = str(PROJECT_ROOT / "output" / "clean_and_geocoded_LMPD_data_2025.xlsx")
@@ -50,10 +51,12 @@ def optimization_menu(docks, incidents_in_one_day, latitude_closest_to_ecuador=N
             amount_incidents_covered = results["amount_incidents_covered"]
             increase_budget = input("Increase budget to cover 100% of incidents? (y/n): ")
             if increase_budget == "y":
+                results_list = [results]
                 incidents_to_cover = len(incidents_in_one_day)
                 while amount_incidents_covered < incidents_to_cover:
                     dock_locations_quantity += 1
                     results = maximize_incidents_covered(docks, incidents_in_one_day, dock_locations_quantity)
+                    results_list.append(results)
                     create_map(
                         results["selected_docks"],
                         incidents_in_one_day,
@@ -73,6 +76,7 @@ def optimization_menu(docks, incidents_in_one_day, latitude_closest_to_ecuador=N
                     if results["amount_incidents_covered"] == amount_incidents_covered:
                         break
                     amount_incidents_covered = results["amount_incidents_covered"]
+                chart_incidents_covered_vs_k(results_list, scenario_name="increase_budget")
             elif increase_budget == "n":
                 continue
             else:
@@ -82,6 +86,7 @@ def optimization_menu(docks, incidents_in_one_day, latitude_closest_to_ecuador=N
             dock_locations_quantity = int(input("Enter the number of dock locations available (Budget constraint): ")) # Budget constraint
             specific_docks = [d for d in docks if d.name in METROSAFE_DOCK_LOCATIONS]
             results = maximize_incidents_covered(docks, incidents_in_one_day, dock_locations_quantity, specific_docks) 
+            results_list = [results]
             create_map(
                 results["selected_docks"],
                 incidents_in_one_day,
@@ -105,6 +110,7 @@ def optimization_menu(docks, incidents_in_one_day, latitude_closest_to_ecuador=N
                 while amount_incidents_covered < incidents_to_cover:
                     dock_locations_quantity += 1
                     results = maximize_incidents_covered(docks, incidents_in_one_day, dock_locations_quantity, specific_docks)
+                    results_list.append(results)
                     create_map(
                         results["selected_docks"],
                         incidents_in_one_day,
@@ -124,6 +130,7 @@ def optimization_menu(docks, incidents_in_one_day, latitude_closest_to_ecuador=N
                     if results["amount_incidents_covered"] == amount_incidents_covered:
                         break
                     amount_incidents_covered = results["amount_incidents_covered"]
+                chart_incidents_covered_vs_k(results_list, scenario_name="specific_docks_increase_budget")
             elif increase_budget == "n":
                 continue
             else:

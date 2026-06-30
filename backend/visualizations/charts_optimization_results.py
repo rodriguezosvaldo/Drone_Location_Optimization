@@ -20,6 +20,13 @@ SCENARIO_LABELS = {
 }
 
 
+def _covered_count(result: dict) -> int:
+    if "amount_incidents_covered" in result:
+        return result["amount_incidents_covered"]
+    value = result["incidents_covered"]
+    return len(value) if isinstance(value, (list, tuple, set)) else int(value)
+
+
 def chart_incidents_covered_vs_k(
     results: list[dict],
     *,
@@ -35,7 +42,7 @@ def chart_incidents_covered_vs_k(
     save_path = output_path or FIGURES_DIR / f"optimization_incidents_covered_{scenario_name}.png"
 
     ks = [r["k"] for r in results]
-    covered = [r["incidents_covered"] for r in results]
+    covered = [_covered_count(r) for r in results]
 
     fig, ax = plt.subplots(figsize=FIG_SIZE)
     ax.plot(ks, covered, marker="o", color=LINE_COLOR, linewidth=2, markersize=8)
@@ -46,12 +53,12 @@ def chart_incidents_covered_vs_k(
     )
     ax.grid(True, alpha=0.3)
 
-    for r in results:
+    for r, count in zip(results, covered):
         pct = r["coverage_rate"] * 100
-        label = f"{r['incidents_covered']:,}\n({pct:.1f}%)"
+        label = f"{count:,}\n({pct:.1f}%)"
         ax.annotate(
             label,
-            (r["k"], r["incidents_covered"]),
+            (r["k"], count),
             textcoords="offset points",
             xytext=(0, 10),
             ha="center",
