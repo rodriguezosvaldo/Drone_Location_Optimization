@@ -7,7 +7,10 @@ from pathlib import Path
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-from .geocode_addresses import STATE, geocode_addresses
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data_preparation.geocode_addresses import STATE, geocode_addresses
 
 
 
@@ -215,19 +218,30 @@ def LMPD_data_cleaning(dataframe: pd.DataFrame) -> pd.DataFrame:
     }
 
     #==============================================================================
-    # Uncomment this block and comment the block below to keep all incidents with priority labels (High/Medium/Low):
+    # Uncomment this block and comment the blocks below to keep all incidents with priority labels (High/Medium/Low):
     # dataframe["priority"] = dataframe["nibrs_code"].map(nibrs_priority)
     # print(f"Priority assigned: {len(dataframe):,} incidents")
     #==============================================================================
     
     #==============================================================================
-    # This block keeps only the incidents with High priority
+    # High priority only (comment out the High+Medium block below to use this):
+    # n = len(dataframe)
+    # dataframe = dataframe[dataframe["nibrs_code"].map(nibrs_priority) == "High"]
+    # dataframe["priority"] = dataframe["nibrs_code"].map(nibrs_priority)
+    # print(
+    #     f"Non-High priority incidents removed: {n - len(dataframe):,} "
+    #     f"-> {len(dataframe):,} remaining"
+    # )
+    #==============================================================================
+    
+    #==============================================================================
+    # High + Medium priority (drops Low and unmapped NIBRS codes)
     n = len(dataframe)
-    dataframe = dataframe[dataframe["nibrs_code"].map(nibrs_priority) == "High"]
     dataframe["priority"] = dataframe["nibrs_code"].map(nibrs_priority)
+    dataframe = dataframe[dataframe["priority"].isin(["High", "Medium"])]
     print(
-        f"Non-High priority incidents removed: {n - len(dataframe):,} "
-        f"-> {len(dataframe):,} remaining"
+        f"Low/unmapped priority incidents removed: {n - len(dataframe):,} "
+        f"-> {len(dataframe):,} remaining (High + Medium)"
     )
     #==============================================================================
     
