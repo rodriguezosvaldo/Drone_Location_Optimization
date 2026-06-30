@@ -149,10 +149,10 @@ def menu():
         choice = input("\nEnter your choice: ")
         if choice == "1":
             covered_incidents = []
-            for incident in incidents:
+            for incident in incidents_in_one_day:
                 if incident.covered_by(docks):
                     covered_incidents.append(incident)
-            create_map(docks, incidents, "docks_and_incidents_map", covered_incidents)
+            create_map(docks, incidents_in_one_day, "docks_and_incidents_map", covered_incidents)
             optimization_menu(docks, incidents_in_one_day)
         elif choice == "2":
             (

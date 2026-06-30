@@ -6,7 +6,7 @@ import webbrowser
 import math
 
 _TIME_LIMIT_SECONDS = 300 # 300 seconds = 5 minutes time limit for the solver
-PERCENTAGE_INCIDENTS_COVERED = 0.7 # 50% of incidents must be covered
+PERCENTAGE_INCIDENTS_COVERED = 1 # 100% of incidents must be covered
 
 def _precompute_coverage(docks, incidents):
     incident_to_docks = {} # List of docks that cover the incident
@@ -47,6 +47,7 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
 
     for d, i in assignable_pairs:
         model.addConstr(z[d, i] <= x[d]) # Each dock must be open to cover an incident
+        model.addConstr(z[d, i] <= y[i]) # A dock can only be assigned to selected incidents(y[i] = 1)
 
     for d in docks:
         coverable_incidents = dock_to_incidents[d]
@@ -55,6 +56,11 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
                 gp.quicksum(z[d, i] for i in coverable_incidents)
                 <= d.drone_coverage_capacity * x[d]
             ) # The number of incidents covered by a dock must be less than or equal to the maximum number of incidents a dock can cover
+            model.addConstr(
+                x[d] <= gp.quicksum(z[d, i] for i in coverable_incidents)
+            ) # A dock can only be open if it covers at least one selected incident
+        else:
+            model.addConstr(x[d] == 0) # Docks that cannot cover any incident must remain closed
     model.addConstr(
         gp.quicksum(x[d] for d in docks) <= dock_locations_quantity) # The number of docks used must be less than or equal to the number of dock locations available
     # End Constraints--------------------------------------------------------------------------------
@@ -69,11 +75,11 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
             name="maximize_coverage"
         )
         # Second priority: minimize docks
-        model.setObjectiveN(
-            -gp.quicksum(x[d] for d in docks),
-            index=1, priority=1, abstol=1e-6, reltol=0,
-            name="minimize_docks"
-        )
+        # model.setObjectiveN(
+        #     -gp.quicksum(x[d] for d in docks),
+        #     index=1, priority=1, abstol=1e-6, reltol=0,
+        #     name="minimize_docks"
+        # )
 
         # Third priority: minimize distance to assigned incidents
         model.setObjectiveN(
