@@ -75,11 +75,11 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
             name="maximize_coverage"
         )
         # Second priority: minimize docks
-        # model.setObjectiveN(
-        #     -gp.quicksum(x[d] for d in docks),
-        #     index=1, priority=1, abstol=1e-6, reltol=0,
-        #     name="minimize_docks"
-        # )
+        model.setObjectiveN(
+            -gp.quicksum(x[d] for d in docks),
+            index=1, priority=1, abstol=1e-6, reltol=0,
+            name="minimize_docks"
+        )
 
         # Third priority: minimize distance to assigned incidents
         model.setObjectiveN(
