@@ -28,6 +28,7 @@
         </div>
 
         <div class="upload-card">
+          <p class="hint upload-note">All three files are required before you can analyze or optimize.</p>
           <div class="upload-field">
             <div class="upload-field-header">
               <label class="field-label" for="incidents-file">Incidents file</label>
@@ -73,13 +74,13 @@
           <fieldset class="radio-group" id="area-radio-group">
             <legend class="sr-only">Analysis area</legend>
             <label class="radio-option">
-              <input type="radio" name="area-mode" value="specific" id="area-priority" checked>
-              <span>Analyze Priority Area</span>
-              <button type="button" class="info-btn" id="priority-info-btn" aria-label="About priority area">!</button>
+              <input type="radio" name="area-mode" value="full" id="area-full" checked>
+              <span>Entire Area</span>
             </label>
             <label class="radio-option">
-              <input type="radio" name="area-mode" value="full" id="area-full">
-              <span>Analyze Entire Area</span>
+              <input type="radio" name="area-mode" value="specific" id="area-priority">
+              <span>Priority Area</span>
+              <button type="button" class="info-btn" id="priority-info-btn" aria-label="About priority area">!</button>
             </label>
           </fieldset>
 
@@ -136,6 +137,6 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=8"></script>
 </body>
 </html>

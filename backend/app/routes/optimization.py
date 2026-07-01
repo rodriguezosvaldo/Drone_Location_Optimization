@@ -11,7 +11,7 @@ class MaximizeRequest(BaseModel):
     dock_locations_quantity: int = Field(..., ge=1, description="Maximum number of dock locations (budget)")
     use_specific_docks: bool = Field(
         False,
-        description="Prioritize MetroSafe fixed dock locations",
+        description="Prioritize docks from the uploaded priority docks file",
     )
     increase_budget: bool = Field(
         False,

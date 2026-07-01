@@ -82,6 +82,19 @@ function updatePriorityAreaOption(status) {
   }
 }
 
+function updatePriorityDocksOption(status) {
+  const checkbox = $("optimize-priority-docks");
+  const label = checkbox.closest(".checkbox-row");
+  const hasPriority = status.priority_docks_loaded;
+
+  checkbox.disabled = !hasPriority;
+  label.classList.toggle("disabled", !hasPriority);
+
+  if (!hasPriority && checkbox.checked) {
+    checkbox.checked = false;
+  }
+}
+
 async function refreshStatus() {
   try {
     const status = await api("/api/data/status");
@@ -89,22 +102,18 @@ async function refreshStatus() {
     const text = $("status-text");
 
     updatePriorityAreaOption(status);
+    updatePriorityDocksOption(status);
 
     if (status.loaded) {
-      dot.className = status.analyzed ? "status-dot online" : "status-dot warning";
-      if (status.analyzed) {
-        const area = status.area_mode === "specific" ? "priority area" : "entire area";
-        text.textContent = `${status.active_docks_count} docks, ${status.active_incidents_count} incidents (${area})`;
-      } else {
-        let msg = `${status.docks_count} docks, ${status.incidents_count} incidents loaded`;
-        if (status.priority_docks_loaded) {
-          msg += ` · ${status.priority_docks_count} priority docks`;
-        }
-        text.textContent = msg;
+      dot.className = "status-dot online";
+      let msg = `${status.docks_count} docks, ${status.incidents_count} incidents loaded`;
+      if (status.priority_docks_loaded) {
+        msg += ` · ${status.priority_docks_count} priority docks`;
       }
+      text.textContent = msg;
     } else {
       dot.className = "status-dot offline";
-      text.textContent = "No data loaded";
+      text.textContent = "Upload incidents, docks, and priority docks";
     }
   } catch {
     $("status-text").textContent = "Could not connect to server";
@@ -155,21 +164,20 @@ async function uploadAll() {
   const docks = $("docks-file").files[0];
   const priority = $("priority-file").files[0];
 
-  if (!incidents && !docks && !priority) {
-    showToast("Select at least one file to upload.", "error");
-    return;
-  }
+  const missing = [];
+  if (!incidents) missing.push("incidents");
+  if (!docks) missing.push("docks");
+  if (!priority) missing.push("priority docks");
 
-  if ((incidents || docks) && (!incidents || !docks)) {
-    const missing = !incidents ? "incidents" : "docks";
-    showToast(`Select both incidents and docks files, or upload only priority docks. Missing: ${missing}.`, "error");
+  if (missing.length) {
+    showToast(`Select all three files before uploading. Missing: ${missing.join(", ")}.`, "error");
     return;
   }
 
   const formData = new FormData();
-  if (incidents) formData.append("incidents", incidents);
-  if (docks) formData.append("docks", docks);
-  if (priority) formData.append("priority_docks", priority);
+  formData.append("incidents", incidents);
+  formData.append("docks", docks);
+  formData.append("priority_docks", priority);
 
   const btn = $("upload-btn");
   btn.disabled = true;
@@ -326,7 +334,7 @@ async function loadOutputs() {
       const item = document.createElement("div");
       item.className = "output-item";
       item.innerHTML = `
-        <div>
+        <div class="output-item-name" title="${file.name}">
           <strong>${file.name}</strong>
         </div>
         <div class="output-actions">

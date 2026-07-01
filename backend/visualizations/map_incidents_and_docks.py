@@ -108,10 +108,16 @@ def create_map(
                 longitude_farthest_from_greenwich,
             )
         )
+        if incidents:
+            incident_latitude_mean = sum(incident.latitude for incident in incidents) / len(incidents)
+            incident_longitude_mean = sum(incident.longitude for incident in incidents) / len(incidents)
+        else:
+            incident_latitude_mean = 0
+            incident_longitude_mean = 0
 
         map = folium.Map(
-            location=[38.2527, -85.7585],
-            zoom_start=12,
+            location=[incident_latitude_mean, incident_longitude_mean],
+            zoom_start=11,
             tiles="CartoDB Positron",
         )
 

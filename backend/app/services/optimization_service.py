@@ -7,7 +7,6 @@ from typing import Any
 from app.config import OUTPUT_DIR
 from app.services.session import session
 from src.docks_and_incidents import (
-    METROSAFE_DOCK_LOCATIONS,
     create_docks_and_incidents,
     specific_area_docks_and_incidents,
 )
@@ -19,6 +18,16 @@ from visualizations.map_incidents_and_docks import create_map
 def _ensure_backend_cwd() -> None:
     backend_root = Path(__file__).resolve().parent.parent.parent
     os.chdir(backend_root)
+
+
+def _priority_dock_names() -> list[str]:
+    return list(session.priority_dock_names or [])
+
+
+def _priority_docks() -> list[Any]:
+    if not session.docks or not session.priority_dock_names:
+        return []
+    return [dock for dock in session.docks if dock.name in session.priority_dock_names]
 
 
 def _serialize_result(result: dict) -> dict:
@@ -47,8 +56,13 @@ def _map_kwargs() -> dict[str, float]:
 
 
 def _require_loaded_data() -> None:
-    if not session.loaded or session.docks is None or session.incidents_in_one_day is None:
-        raise ValueError("Load docks and incidents data before continuing.")
+    if (
+        not session.loaded
+        or session.docks is None
+        or session.incidents_in_one_day is None
+        or not session.priority_dock_names
+    ):
+        raise ValueError("Upload incidents, docks, and priority docks files before continuing.")
 
 
 def _require_analyzed_area() -> None:
@@ -76,17 +90,25 @@ def load_priority_docks(priority_path: Path) -> dict[str, Any]:
     return {"priority_docks_count": len(names)}
 
 
-def load_data(docks_path: Path, incidents_path: Path) -> dict[str, Any]:
+def load_data(
+    docks_path: Path,
+    incidents_path: Path,
+    priority_path: Path,
+) -> dict[str, Any]:
     _ensure_backend_cwd()
     if not docks_path.exists():
         raise FileNotFoundError(f"Docks file not found: {docks_path}")
     if not incidents_path.exists():
         raise FileNotFoundError(f"Incidents file not found: {incidents_path}")
+    if not priority_path.exists():
+        raise FileNotFoundError(f"Priority docks file not found: {priority_path}")
 
-    docks, all_incidents, incidents_in_one_day = create_docks_and_incidents(
+    docks, all_incidents, incidents_in_one_day, priority_dock_names = create_docks_and_incidents(
         str(docks_path),
         str(incidents_path),
+        str(priority_path),
     )
+    session.priority_dock_names = priority_dock_names
 
     session.docks = docks
     session.all_incidents = all_incidents
@@ -102,12 +124,14 @@ def load_data(docks_path: Path, incidents_path: Path) -> dict[str, Any]:
     session.incidents_count = len(incidents_in_one_day)
     session.loaded = True
 
-    return {
+    result = {
         "docks_count": len(docks),
         "incidents_count": len(incidents_in_one_day),
         "docks_file": docks_path.name,
         "incidents_file": incidents_path.name,
+        "priority_docks_count": len(session.priority_dock_names),
     }
+    return result
 
 
 def get_status() -> dict[str, Any]:
@@ -158,8 +182,9 @@ def analyze_area(area: str) -> dict[str, Any]:
     else:
         raise ValueError('area must be "full" or "specific".')
 
-    covered_incidents = [i for i in active_incidents if i.covered_by(active_docks)]
+    covered_incidents = [incident for incident in active_incidents if incident.covered_by(active_docks)]
     create_map(
+        _priority_dock_names(),
         active_docks,
         active_incidents,
         "docks_and_incidents_map",
@@ -187,6 +212,7 @@ def _create_optimization_map(
     map_name: str,
 ) -> str:
     create_map(
+        _priority_dock_names(),
         results["selected_docks"],
         session.active_incidents,
         map_name,
@@ -209,8 +235,11 @@ def run_maximize_optimization(
     incidents = session.active_incidents
     specific_docks = None
     if use_specific_docks:
-        priority_names = session.priority_dock_names or METROSAFE_DOCK_LOCATIONS
-        specific_docks = [d for d in docks if d.name in priority_names]
+        if not session.priority_dock_names:
+            raise ValueError("Upload a priority docks file before prioritizing priority docks.")
+        specific_docks = _priority_docks()
+        if not specific_docks:
+            raise ValueError("No priority docks found in the loaded docks dataset.")
 
     results = maximize_incidents_covered(
         docks,
@@ -221,8 +250,10 @@ def run_maximize_optimization(
     if results is None:
         raise RuntimeError("Optimization did not produce a feasible result.")
 
-    prefix = "specific_docks" if use_specific_docks else "optimized"
-    map_name = f"{prefix}_map_{dock_locations_quantity}_docks"
+    if use_specific_docks:
+        map_name = f"priority_docks_optimized_map_{dock_locations_quantity}_docks"
+    else:
+        map_name = f"optimized_map_{dock_locations_quantity}_docks"
     outputs = [_create_optimization_map(results, map_name)]
     results_list = [results]
 
@@ -242,11 +273,10 @@ def run_maximize_optimization(
             if next_results is None:
                 break
 
-            budget_map_name = (
-                f"specific_docks_increase_budget_{current_k}_docks"
-                if use_specific_docks
-                else f"increase_budget_{current_k}_docks"
-            )
+            if use_specific_docks:
+                budget_map_name = f"priority_docks_increase_budget_{current_k}_docks"
+            else:
+                budget_map_name = f"increase_budget_{current_k}_docks"
             outputs.append(_create_optimization_map(next_results, budget_map_name))
             results_list.append(next_results)
 
@@ -257,13 +287,13 @@ def run_maximize_optimization(
             results = next_results
 
         chart_scenario = (
-            "specific_docks_increase_budget" if use_specific_docks else "increase_budget"
+            "priority_docks_increase_budget" if use_specific_docks else "increase_budget"
         )
         chart_path = chart_incidents_covered_vs_k(results_list, scenario_name=chart_scenario)
         outputs.append(_relative_output_path(chart_path))
 
     return {
-        "scenario": "specific_docks" if use_specific_docks else "maximize_coverage",
+        "scenario": "priority_docks" if use_specific_docks else "maximize_coverage",
         "area": session.area_mode,
         "increase_budget": increase_budget,
         "result": _serialize_result(results),

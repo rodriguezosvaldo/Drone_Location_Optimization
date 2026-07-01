@@ -35,6 +35,15 @@ class Dock:
                 total_distance_to_covered_incidents += distance(self, incident)
         return covered_incidents, total_distance_to_covered_incidents
 
+    def change_response_time(self, new_response_time):
+        self.response_time = new_response_time
+        self.effective_radius = self.drone_speed * self.response_time
+        return self.effective_radius
+
+    def change_drone_coverage_capacity(self, new_coverage_capacity):
+        self.coverage_capacity = new_coverage_capacity
+        return self.coverage_capacity
+
 class Incident:
     def __init__(self, incident_id, latitude, longitude, date):
         self.incident_id = incident_id

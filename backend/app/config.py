@@ -11,6 +11,7 @@ TABLES_DIR = OUTPUT_DIR / "tables"
 
 DEFAULT_DOCKS_PATH = OUTPUT_DIR / "docks_JCPS_MetroSafe.xlsx"
 DEFAULT_INCIDENTS_PATH = OUTPUT_DIR / "clean_and_geocoded_LMPD_data_2025.xlsx"
+DEFAULT_PRIORITY_DOCKS_PATH = OUTPUT_DIR / "priority_docks.xlsx"
 
 UPLOADED_DOCKS_PATH = UPLOADS_DIR / "docks.xlsx"
 UPLOADED_INCIDENTS_PATH = UPLOADS_DIR / "incidents.xlsx"

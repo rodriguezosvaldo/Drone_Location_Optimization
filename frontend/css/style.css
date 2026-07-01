@@ -156,6 +156,10 @@ body {
   min-height: 0;
 }
 
+.upload-note {
+  margin-bottom: 0.15rem;
+}
+
 .upload-field {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -374,6 +378,11 @@ input[type="number"] {
   cursor: pointer;
 }
 
+.checkbox-row.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .advanced-card {
   flex-shrink: 0;
 }
@@ -439,6 +448,7 @@ input[type="number"] {
   gap: 0.35rem;
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -453,6 +463,22 @@ input[type="number"] {
   border-radius: 8px;
   font-size: 0.76rem;
   flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.output-item-name {
+  flex: 1;
+  min-width: 0;
+  max-width: 175px;
+  overflow: hidden;
+}
+
+.output-item-name strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .output-item span {
