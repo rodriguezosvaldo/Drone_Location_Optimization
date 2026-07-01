@@ -4,8 +4,10 @@ import math
 
 # CONSTANTS
 # Drone speed and response time are constant values
-DRONE_SPEED = 35.8 # 35.8 miles/hour = 16 meters/s data from https://www.skydio.com/x10/technical-specs
-RESPONSE_TIME = 0.033 # 0.033 hours = 2 minutes target response time
+# DRONE_SPEED = 35.8 # 35.8 miles/hour = 16 meters/s data from https://www.skydio.com/x10/technical-specs
+# RESPONSE_TIME = 0.033 # 0.033 hours = 2 minutes target response time
+EFFECTIVE_RADIUS = 1.8 # miles 
+
 
 METROSAFE_DOCK_LOCATIONS = [
     "1510 South 6th Street",

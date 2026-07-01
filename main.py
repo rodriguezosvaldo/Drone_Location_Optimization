@@ -1,7 +1,6 @@
 from src.docks_and_incidents import create_docks_and_incidents
 from src.optimization_model import maximize_incidents_covered
 from visualizations.map_incidents_and_docks import create_map
-from src.test_multiple_optimizations import test_multiple_optimizations
 
 # CONSTANTS
 DOCKS_EXCEL_FILE_PATH = "output/docks_JCPS_MetroSafe.xlsx"
