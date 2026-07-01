@@ -70,9 +70,12 @@ def coverage(dock, incident):
     return distance(dock, incident) <= dock.effective_radius
 
 # Returns the docks and incidents within a specific area around the specific docks
-def specific_area_docks_and_incidents(docks, incidents):
+def specific_area_docks_and_incidents(docks, incidents, priority_dock_names=None):
     EXTRA_DISTANCE_DEGREES = 0.014 # 0.014 degrees = 1 mile to get an area slightly larger than the effective radius
-    specific_docks = [d for d in docks if d.name in METROSAFE_DOCK_LOCATIONS]
+    priority_names = priority_dock_names or METROSAFE_DOCK_LOCATIONS
+    specific_docks = [d for d in docks if d.name in priority_names]
+    if not specific_docks:
+        raise ValueError("No priority docks found in the loaded docks dataset.")
     all_docks_latitudes = [d.latitude for d in specific_docks]
     all_docks_longitudes = [d.longitude for d in specific_docks]
     effective_radius = max(d.effective_radius for d in specific_docks)

@@ -16,6 +16,7 @@ class AppSession:
     incidents_path: Path | None = None
     docks_count: int = 0
     incidents_count: int = 0
+    priority_dock_names: list[str] | None = None
     analyzed: bool = False
     loaded: bool = False
 

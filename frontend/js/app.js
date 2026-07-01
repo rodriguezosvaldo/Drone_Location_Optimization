@@ -1,25 +1,7 @@
 const API = "";
 
-const sections = {
-  upload: {
-    title: "Cargar datos",
-    subtitle: "Sube archivos Excel o usa los datos predeterminados del proyecto.",
-  },
-  area: {
-    title: "Área de análisis",
-    subtitle: "Selecciona si analizar toda el área o solo la zona MetroSafe (como el menú principal del CLI).",
-  },
-  optimize: {
-    title: "Optimización",
-    subtitle: "Maximiza incidentes cubiertos con restricción de presupuesto k, igual que el menú de optimización del CLI.",
-  },
-  outputs: {
-    title: "Resultados",
-    subtitle: "Mapas y gráficos generados por el análisis y las optimizaciones.",
-  },
-};
-
 let activeJobPoll = null;
+let currentMapPath = null;
 
 function $(id) {
   return document.getElementById(id);
@@ -46,66 +28,21 @@ async function api(path, options = {}) {
   return data;
 }
 
-function showResults(data) {
-  $("results-json").textContent = JSON.stringify(data, null, 2);
-  $("results-panel").classList.remove("hidden");
-}
-
-function hideResults() {
-  $("results-panel").classList.add("hidden");
-}
-
-function updateAreaSummary(status) {
-  const card = $("area-summary-card");
-  const text = $("area-summary-text");
-
-  if (!status.analyzed) {
-    card.classList.add("hidden");
-    return;
-  }
-
-  const areaLabel = status.area_mode === "specific" ? "Área MetroSafe específica" : "Área completa";
-  text.textContent = `${areaLabel}: ${status.active_docks_count} docks, ${status.active_incidents_count} incidentes (día pico).`;
-  card.classList.remove("hidden");
-}
-
-async function refreshStatus() {
-  try {
-    const status = await api("/api/data/status");
-    const dot = document.querySelector(".status-dot");
-    const text = $("status-text");
-
-    if (status.loaded) {
-      dot.className = status.analyzed ? "status-dot online" : "status-dot warning";
-      if (status.analyzed) {
-        const area = status.area_mode === "specific" ? "área MetroSafe" : "área completa";
-        text.textContent = `${status.active_docks_count} docks, ${status.active_incidents_count} incidentes (${area})`;
-      } else {
-        text.textContent = `${status.docks_count} docks, ${status.incidents_count} incidentes — selecciona área`;
-      }
-    } else {
-      dot.className = "status-dot offline";
-      text.textContent = "Sin datos cargados";
-    }
-
-    updateAreaSummary(status);
-  } catch {
-    $("status-text").textContent = "No se pudo conectar al servidor";
+function switchTab(section) {
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.section === section);
+  });
+  document.querySelectorAll(".sidebar-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === `section-${section}`);
+  });
+  if (section === "results") {
+    loadOutputs();
   }
 }
 
 function setupNavigation() {
   document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const section = btn.dataset.section;
-      document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
-      document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
-      btn.classList.add("active");
-      $(`section-${section}`).classList.add("active");
-      $("page-title").textContent = sections[section].title;
-      $("page-subtitle").textContent = sections[section].subtitle;
-      if (section === "outputs") loadOutputs();
-    });
+    btn.addEventListener("click", () => switchTab(btn.dataset.section));
   });
 }
 
@@ -128,45 +65,113 @@ function setupFileDrop(dropId, inputId, nameId) {
     }
   });
   input.addEventListener("change", () => {
-    nameEl.textContent = input.files[0]?.name || "Ningún archivo seleccionado";
+    nameEl.textContent = input.files[0]?.name || "No file selected";
   });
 }
 
-async function uploadFile(endpoint, inputId) {
-  const input = $(inputId);
-  if (!input.files.length) {
-    showToast("Selecciona un archivo primero.", "error");
+function updatePriorityAreaOption(status) {
+  const priorityRadio = $("area-priority");
+  const priorityLabel = priorityRadio.closest(".radio-option");
+  const hasPriority = status.priority_docks_loaded;
+
+  priorityRadio.disabled = !hasPriority;
+  priorityLabel.classList.toggle("disabled", !hasPriority);
+
+  if (!hasPriority && priorityRadio.checked) {
+    $("area-full").checked = true;
+  }
+}
+
+async function refreshStatus() {
+  try {
+    const status = await api("/api/data/status");
+    const dot = $("status-dot");
+    const text = $("status-text");
+
+    updatePriorityAreaOption(status);
+
+    if (status.loaded) {
+      dot.className = status.analyzed ? "status-dot online" : "status-dot warning";
+      if (status.analyzed) {
+        const area = status.area_mode === "specific" ? "priority area" : "entire area";
+        text.textContent = `${status.active_docks_count} docks, ${status.active_incidents_count} incidents (${area})`;
+      } else {
+        let msg = `${status.docks_count} docks, ${status.incidents_count} incidents loaded`;
+        if (status.priority_docks_loaded) {
+          msg += ` · ${status.priority_docks_count} priority docks`;
+        }
+        text.textContent = msg;
+      }
+    } else {
+      dot.className = "status-dot offline";
+      text.textContent = "No data loaded";
+    }
+  } catch {
+    $("status-text").textContent = "Could not connect to server";
+    $("status-dot").className = "status-dot offline";
+  }
+}
+
+function showMap(relativePath) {
+  currentMapPath = relativePath;
+  const frame = $("map-frame");
+  const placeholder = $("map-placeholder");
+
+  frame.src = `/api/outputs/file/${relativePath}`;
+  frame.classList.remove("hidden");
+  placeholder.classList.add("hidden");
+}
+
+function showMapFromResult(result) {
+  const mapPath = result.map || result.outputs?.find((o) => o.endsWith(".html"));
+  if (mapPath) {
+    showMap(mapPath.replace(/^\//, ""));
+    switchTab("results");
+  }
+}
+
+async function uploadAll() {
+  const incidents = $("incidents-file").files[0];
+  const docks = $("docks-file").files[0];
+  const priority = $("priority-file").files[0];
+
+  if (!incidents && !docks && !priority) {
+    showToast("Select at least one file to upload.", "error");
+    return;
+  }
+
+  if ((incidents || docks) && (!incidents || !docks)) {
+    const missing = !incidents ? "incidents" : "docks";
+    showToast(`Select both incidents and docks files, or upload only priority docks. Missing: ${missing}.`, "error");
     return;
   }
 
   const formData = new FormData();
-  formData.append("file", input.files[0]);
+  if (incidents) formData.append("incidents", incidents);
+  if (docks) formData.append("docks", docks);
+  if (priority) formData.append("priority_docks", priority);
+
+  const btn = $("upload-btn");
+  btn.disabled = true;
 
   try {
-    const result = await api(endpoint, { method: "POST", body: formData });
+    const result = await api("/api/data/upload", { method: "POST", body: formData });
     showToast(result.message);
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-async function loadData() {
-  const useDefaults = document.querySelector('input[name="data-source"]:checked').value === "defaults";
-  try {
-    const result = await api("/api/data/load", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ use_defaults: useDefaults }),
-    });
-    showToast(result.message);
-    showResults(result);
     await refreshStatus();
   } catch (error) {
     showToast(error.message, "error");
+  } finally {
+    btn.disabled = false;
   }
 }
 
-async function analyzeArea(area) {
+async function generateMap() {
+  const area = document.querySelector('input[name="area-mode"]:checked')?.value;
+  if (!area) return;
+
+  const btn = $("generate-map-btn");
+  btn.disabled = true;
+
   try {
     const result = await api("/api/data/analyze", {
       method: "POST",
@@ -174,17 +179,21 @@ async function analyzeArea(area) {
       body: JSON.stringify({ area }),
     });
     showToast(result.message);
-    showResults(result);
+    showMap(result.map);
+    switchTab("results");
     await refreshStatus();
     loadOutputs();
   } catch (error) {
     showToast(error.message, "error");
+  } finally {
+    btn.disabled = false;
   }
 }
 
 function startJobPolling(jobId) {
-  $("job-panel").classList.remove("hidden");
-  $("job-status-text").textContent = "En ejecución... puede tardar varios minutos.";
+  const statusEl = $("job-status");
+  statusEl.classList.remove("hidden");
+  $("job-status-text").textContent = "Running optimization… this may take several minutes.";
 
   if (activeJobPoll) clearInterval(activeJobPoll);
 
@@ -194,15 +203,16 @@ function startJobPolling(jobId) {
       if (job.status === "completed") {
         clearInterval(activeJobPoll);
         activeJobPoll = null;
-        $("job-status-text").textContent = "Completado.";
-        showToast("Optimización completada.");
-        showResults(job.result);
+        $("job-status-text").textContent = "Completed.";
+        showToast("Optimization completed.");
+        const htmlOutput = job.result?.outputs?.find((o) => o.endsWith(".html"));
+        if (htmlOutput) showMap(htmlOutput);
         loadOutputs();
       } else if (job.status === "failed") {
         clearInterval(activeJobPoll);
         activeJobPoll = null;
-        $("job-status-text").textContent = "Error.";
-        showToast(job.error || "La optimización falló.", "error");
+        $("job-status-text").textContent = "Failed.";
+        showToast(job.error || "Optimization failed.", "error");
       }
     } catch (error) {
       clearInterval(activeJobPoll);
@@ -212,15 +222,15 @@ function startJobPolling(jobId) {
   }, 2500);
 }
 
-async function runOptimization(useSpecificDocks) {
-  const kInput = useSpecificDocks ? $("specific-k") : $("maximize-k");
-  const budgetInput = useSpecificDocks ? $("specific-increase-budget") : $("maximize-increase-budget");
-
+async function runOptimization() {
   const payload = {
-    dock_locations_quantity: Number(kInput.value),
-    use_specific_docks: useSpecificDocks,
-    increase_budget: budgetInput.checked,
+    dock_locations_quantity: Number($("optimize-k").value),
+    use_specific_docks: $("optimize-priority-docks").checked,
+    increase_budget: $("optimize-increase-budget").checked,
   };
+
+  const btn = $("run-optimize-btn");
+  btn.disabled = true;
 
   try {
     const result = await api("/api/optimize/maximize", {
@@ -235,40 +245,45 @@ async function runOptimization(useSpecificDocks) {
       return;
     }
 
-    showToast("Optimización completada.");
-    showResults(result);
+    showToast("Optimization completed.");
+    showMapFromResult(result);
     loadOutputs();
   } catch (error) {
     showToast(error.message, "error");
+  } finally {
+    btn.disabled = false;
   }
 }
 
 async function loadOutputs() {
   const list = $("outputs-list");
-  list.innerHTML = "<p class='hint'>Cargando...</p>";
+  list.innerHTML = "<p class='hint'>Loading…</p>";
 
   try {
     const data = await api("/api/outputs");
-    if (!data.files.length) {
-      list.innerHTML = "<p class='hint'>No hay archivos generados todavía.</p>";
+    const htmlFiles = data.files.filter((f) => f.path.endsWith(".html"));
+
+    if (!htmlFiles.length) {
+      list.innerHTML = "<p class='hint'>No maps generated yet.</p>";
       return;
     }
 
     list.innerHTML = "";
-    data.files.forEach((file) => {
+    htmlFiles.forEach((file) => {
       const item = document.createElement("div");
       item.className = "output-item";
       item.innerHTML = `
         <div>
-          <strong>${file.name}</strong><br>
-          <span>${file.path}</span>
+          <strong>${file.name}</strong>
         </div>
         <div class="output-actions">
-          <button class="btn secondary preview-btn">Ver</button>
-          <a class="btn secondary" href="/api/outputs/file/${file.path}" download="${file.name}">Descargar</a>
+          <button class="btn ghost small view-btn">View</button>
+          <a class="btn ghost small" href="/api/outputs/file/${file.path}" download="${file.name}">↓</a>
         </div>
       `;
-      item.querySelector(".preview-btn").addEventListener("click", () => previewFile(file));
+      item.querySelector(".view-btn").addEventListener("click", () => {
+        showMap(file.path);
+      });
       list.appendChild(item);
     });
   } catch (error) {
@@ -276,38 +291,36 @@ async function loadOutputs() {
   }
 }
 
-function previewFile(file) {
-  const preview = $("preview-content");
-  const card = $("preview-card");
-  const url = `/api/outputs/file/${file.path}`;
+function setupTooltip() {
+  const btn = $("priority-info-btn");
+  const tooltip = $("priority-tooltip");
 
-  if (file.path.endsWith(".html")) {
-    preview.innerHTML = `<iframe src="${url}" title="${file.name}"></iframe>`;
-  } else if (file.path.endsWith(".png") || file.path.endsWith(".jpg") || file.path.endsWith(".jpeg")) {
-    preview.innerHTML = `<img src="${url}" alt="${file.name}">`;
-  } else {
-    preview.innerHTML = `<p class="hint">Vista previa no disponible. Usa descargar.</p>`;
-  }
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    tooltip.classList.toggle("hidden");
+  });
 
-  card.classList.remove("hidden");
+  document.addEventListener("click", (e) => {
+    if (!btn.contains(e.target) && !tooltip.contains(e.target)) {
+      tooltip.classList.add("hidden");
+    }
+  });
 }
 
 function bindEvents() {
-  $("upload-docks-btn").addEventListener("click", () => uploadFile("/api/data/upload/docks", "docks-file"));
-  $("upload-incidents-btn").addEventListener("click", () => uploadFile("/api/data/upload/incidents", "incidents-file"));
-  $("load-data-btn").addEventListener("click", loadData);
-  $("analyze-full-btn").addEventListener("click", () => analyzeArea("full"));
-  $("analyze-specific-btn").addEventListener("click", () => analyzeArea("specific"));
-  $("run-maximize-btn").addEventListener("click", () => runOptimization(false));
-  $("run-specific-btn").addEventListener("click", () => runOptimization(true));
+  $("upload-btn").addEventListener("click", uploadAll);
+  $("generate-map-btn").addEventListener("click", generateMap);
+  $("run-optimize-btn").addEventListener("click", runOptimization);
   $("refresh-outputs-btn").addEventListener("click", loadOutputs);
-  $("close-results-btn").addEventListener("click", hideResults);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   setupNavigation();
-  setupFileDrop("docks-drop", "docks-file", "docks-file-name");
   setupFileDrop("incidents-drop", "incidents-file", "incidents-file-name");
+  setupFileDrop("docks-drop", "docks-file", "docks-file-name");
+  setupFileDrop("priority-drop", "priority-file", "priority-file-name");
+  setupTooltip();
   bindEvents();
   refreshStatus();
 });

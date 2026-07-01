@@ -1,169 +1,141 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MetroSafe Drone Optimization</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="app">
     <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-icon">MS</div>
-        <div>
-          <h1>MetroSafe</h1>
-          <p>Drone Optimization</p>
-        </div>
-      </div>
       <nav class="nav">
-        <button class="nav-btn active" data-section="upload">1. Datos</button>
-        <button class="nav-btn" data-section="area">2. Área de análisis</button>
-        <button class="nav-btn" data-section="optimize">3. Optimización</button>
-        <button class="nav-btn" data-section="outputs">4. Resultados</button>
+        <button class="nav-btn active" data-section="data">Data</button>
+        <button class="nav-btn" data-section="optimization">Optimization</button>
+        <button class="nav-btn" data-section="results">Results</button>
       </nav>
-      <div class="status-card" id="status-card">
-        <span class="status-dot offline"></span>
-        <div>
-          <strong>Estado</strong>
-          <p id="status-text">Sin datos cargados</p>
-        </div>
-      </div>
-    </aside>
 
-    <main class="content">
-      <header class="page-header">
-        <div>
-          <h2 id="page-title">Cargar datos</h2>
-          <p id="page-subtitle">Sube archivos Excel de docks e incidentes, o usa los datos predeterminados del proyecto.</p>
-        </div>
-      </header>
-
-      <section id="section-upload" class="panel active">
-        <div class="grid-2">
-          <div class="card">
-            <h3>Archivo de docks</h3>
-            <p class="hint">Columnas requeridas: <code>name</code>, <code>latitude</code>, <code>longitude</code></p>
-            <label class="file-drop" id="docks-drop">
-              <input type="file" id="docks-file" accept=".xlsx,.xls">
-              <span>Arrastra o selecciona docks.xlsx</span>
-            </label>
-            <p class="file-name" id="docks-file-name">Ningún archivo seleccionado</p>
-            <button class="btn secondary" id="upload-docks-btn">Subir docks</button>
+      <section id="section-data" class="sidebar-panel active">
+        <div class="status-card" id="status-card">
+          <span class="status-dot offline" id="status-dot"></span>
+          <div>
+            <strong>Status</strong>
+            <p id="status-text">No data loaded</p>
           </div>
+        </div>
 
-          <div class="card">
-            <h3>Archivo de incidentes</h3>
-            <p class="hint">Columnas requeridas: <code>incident_number</code>, <code>latitude</code>, <code>longitude</code>, <code>date</code></p>
+        <div class="upload-card">
+          <div class="upload-field">
+            <div class="upload-field-header">
+              <label class="field-label" for="incidents-file">Incidents file</label>
+              <p class="hint">Required columns: <code>incident_number</code>, <code>latitude</code>, <code>longitude</code>, <code>date</code></p>
+            </div>
             <label class="file-drop" id="incidents-drop">
               <input type="file" id="incidents-file" accept=".xlsx,.xls">
-              <span>Arrastra o selecciona incidents.xlsx</span>
+              <span>Drag or select incidents.xlsx</span>
             </label>
-            <p class="file-name" id="incidents-file-name">Ningún archivo seleccionado</p>
-            <button class="btn secondary" id="upload-incidents-btn">Subir incidentes</button>
-          </div>
-        </div>
-
-        <div class="card actions-card">
-          <h3>Cargar datos en memoria</h3>
-          <p class="hint">Equivalente al inicio del CLI: carga docks e incidentes del día pico.</p>
-          <div class="radio-group">
-            <label><input type="radio" name="data-source" value="defaults" checked> Usar archivos predeterminados del proyecto</label>
-            <label><input type="radio" name="data-source" value="uploads"> Usar archivos subidos</label>
-          </div>
-          <button class="btn primary" id="load-data-btn">Cargar docks e incidentes</button>
-        </div>
-      </section>
-
-      <section id="section-area" class="panel">
-        <div class="grid-2">
-          <div class="card">
-            <h3>Analizar toda el área</h3>
-            <p class="hint">Opción 1 del menú principal del CLI. Genera el mapa de docks e incidentes cubiertos en toda la región.</p>
-            <button class="btn primary" id="analyze-full-btn">Analizar área completa</button>
+            <p class="file-name" id="incidents-file-name">No file selected</p>
           </div>
 
-          <div class="card">
-            <h3>Analizar área específica</h3>
-            <p class="hint">Opción 2 del CLI. Filtra docks e incidentes alrededor de los 8 docks MetroSafe actuales.</p>
-            <button class="btn primary" id="analyze-specific-btn">Analizar área MetroSafe</button>
-          </div>
-        </div>
-
-        <div class="card hidden" id="area-summary-card">
-          <h3>Área activa</h3>
-          <p class="hint" id="area-summary-text"></p>
-        </div>
-      </section>
-
-      <section id="section-optimize" class="panel">
-        <div class="grid-2">
-          <div class="card">
-            <h3>Maximizar incidentes cubiertos</h3>
-            <p class="hint">Opción 1 del menú de optimización del CLI.</p>
-            <div class="form-row">
-              <label>Número de docks disponibles (presupuesto k)</label>
-              <input type="number" id="maximize-k" min="1" value="4">
+          <div class="upload-field">
+            <div class="upload-field-header">
+              <label class="field-label" for="docks-file">Docks file</label>
+              <p class="hint">Required columns: <code>name</code>, <code>latitude</code>, <code>longitude</code></p>
             </div>
-            <label class="checkbox-row">
-              <input type="checkbox" id="maximize-increase-budget"> Aumentar presupuesto hasta cubrir 100% de incidentes
+            <label class="file-drop" id="docks-drop">
+              <input type="file" id="docks-file" accept=".xlsx,.xls">
+              <span>Drag or select docks.xlsx</span>
             </label>
-            <button class="btn primary" id="run-maximize-btn">Ejecutar optimización</button>
+            <p class="file-name" id="docks-file-name">No file selected</p>
           </div>
 
-          <div class="card">
-            <h3>Maximizar con docks MetroSafe específicos</h3>
-            <p class="hint">Opción 2 del CLI. Prioriza los 8 docks MetroSafe existentes.</p>
-            <div class="form-row">
-              <label>Número de docks disponibles (presupuesto k)</label>
-              <input type="number" id="specific-k" min="1" value="4">
+          <div class="upload-field">
+            <div class="upload-field-header">
+              <label class="field-label" for="priority-file">Priority Docks</label>
+              <p class="hint">Required column: <code>name</code> (must match docks file)</p>
             </div>
-            <label class="checkbox-row">
-              <input type="checkbox" id="specific-increase-budget"> Aumentar presupuesto hasta cubrir 100% de incidentes
+            <label class="file-drop" id="priority-drop">
+              <input type="file" id="priority-file" accept=".xlsx,.xls">
+              <span>Drag or select priority_docks.xlsx</span>
             </label>
-            <button class="btn primary" id="run-specific-btn">Ejecutar optimización</button>
+            <p class="file-name" id="priority-file-name">No file selected</p>
           </div>
-        </div>
 
-        <div class="card job-panel hidden" id="job-panel">
-          <h3>Progreso de optimización</h3>
-          <div class="job-status">
-            <span class="spinner" id="job-spinner"></span>
-            <span id="job-status-text">En ejecución... puede tardar varios minutos.</span>
-          </div>
+          <button class="btn outline full-width" id="upload-btn">Upload</button>
         </div>
       </section>
 
-      <section id="section-outputs" class="panel">
+      <section id="section-optimization" class="sidebar-panel">
+        <div class="card">
+          <fieldset class="radio-group" id="area-radio-group">
+            <legend class="sr-only">Analysis area</legend>
+            <label class="radio-option">
+              <input type="radio" name="area-mode" value="specific" id="area-priority" checked>
+              <span>Analyze Priority Area</span>
+              <button type="button" class="info-btn" id="priority-info-btn" aria-label="About priority area">!</button>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="area-mode" value="full" id="area-full">
+              <span>Analyze Entire Area</span>
+            </label>
+          </fieldset>
+
+          <div class="tooltip-popup hidden" id="priority-tooltip" role="tooltip">
+            Area around priority docks
+          </div>
+
+          <button class="btn outline full-width" id="generate-map-btn">Generate Map</button>
+        </div>
+
+        <details class="card advanced-card">
+          <summary>Advanced optimization</summary>
+          <div class="form-row">
+            <label for="optimize-k">Number of docks (budget k)</label>
+            <input type="number" id="optimize-k" min="1" value="4">
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" id="optimize-priority-docks">
+            Prioritize priority docks
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="optimize-increase-budget">
+            Increase budget until 100% covered
+          </label>
+          <button class="btn outline full-width" id="run-optimize-btn">Run Optimization</button>
+          <div class="job-status hidden" id="job-status">
+            <span class="spinner"></span>
+            <span id="job-status-text">Running optimization…</span>
+          </div>
+        </details>
+      </section>
+
+      <section id="section-results" class="sidebar-panel">
         <div class="card">
           <div class="outputs-header">
-            <h3>Archivos generados</h3>
-            <button class="btn secondary" id="refresh-outputs-btn">Actualizar</button>
+            <h3>Generated files</h3>
+            <button class="btn ghost small" id="refresh-outputs-btn">Refresh</button>
           </div>
           <div id="outputs-list" class="outputs-list"></div>
         </div>
-        <div class="card preview-card hidden" id="preview-card">
-          <h3>Vista previa</h3>
-          <div id="preview-content"></div>
-        </div>
       </section>
+    </aside>
 
-      <section class="results-panel hidden" id="results-panel">
-        <div class="card">
-          <div class="results-header">
-            <h3>Resultados</h3>
-            <button class="btn ghost" id="close-results-btn">Cerrar</button>
-          </div>
-          <pre id="results-json"></pre>
+    <main class="workspace">
+      <div class="map-container" id="map-container">
+        <div class="map-placeholder" id="map-placeholder">
+          <span class="map-placeholder-text">MAP</span>
         </div>
-      </section>
-
-      <div class="toast hidden" id="toast"></div>
+        <iframe id="map-frame" class="hidden" title="Generated map"></iframe>
+      </div>
     </main>
+
+    <p class="canvas-hint">To move the canvas, hold scroll wheel or Space while dragging.</p>
   </div>
-  <script src="js/app.js"></script>
+
+  <div class="toast hidden" id="toast"></div>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>

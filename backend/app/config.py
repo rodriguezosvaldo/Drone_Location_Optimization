@@ -14,3 +14,4 @@ DEFAULT_INCIDENTS_PATH = OUTPUT_DIR / "clean_and_geocoded_LMPD_data_2025.xlsx"
 
 UPLOADED_DOCKS_PATH = UPLOADS_DIR / "docks.xlsx"
 UPLOADED_INCIDENTS_PATH = UPLOADS_DIR / "incidents.xlsx"
+UPLOADED_PRIORITY_DOCKS_PATH = UPLOADS_DIR / "priority_docks.xlsx"

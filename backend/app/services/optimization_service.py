@@ -57,6 +57,25 @@ def _require_analyzed_area() -> None:
         raise ValueError("Select and analyze an area before running optimizations.")
 
 
+def load_priority_docks(priority_path: Path) -> dict[str, Any]:
+    _ensure_backend_cwd()
+    if not priority_path.exists():
+        raise FileNotFoundError(f"Priority docks file not found: {priority_path}")
+
+    import pandas as pd
+
+    data = pd.read_excel(priority_path)
+    if "name" not in data.columns:
+        raise ValueError('Priority docks file must include a "name" column.')
+
+    names = [str(name).strip() for name in data["name"].dropna().tolist() if str(name).strip()]
+    if not names:
+        raise ValueError("Priority docks file does not contain any dock names.")
+
+    session.priority_dock_names = names
+    return {"priority_docks_count": len(names)}
+
+
 def load_data(docks_path: Path, incidents_path: Path) -> dict[str, Any]:
     _ensure_backend_cwd()
     if not docks_path.exists():
@@ -102,7 +121,8 @@ def get_status() -> dict[str, Any]:
         "active_incidents_count": len(session.active_incidents) if session.active_incidents else 0,
         "docks_file": session.docks_path.name if session.docks_path else None,
         "incidents_file": session.incidents_path.name if session.incidents_path else None,
-        "metrosafe_fixed_docks": len(METROSAFE_DOCK_LOCATIONS),
+        "priority_docks_loaded": bool(session.priority_dock_names),
+        "priority_docks_count": len(session.priority_dock_names or []),
     }
 
 
@@ -115,6 +135,8 @@ def analyze_area(area: str) -> dict[str, Any]:
         active_incidents = session.incidents_in_one_day
         area_bounds = None
     elif area == "specific":
+        if not session.priority_dock_names:
+            raise ValueError("Upload a priority docks file before analyzing the priority area.")
         (
             active_docks,
             active_incidents,
@@ -122,7 +144,11 @@ def analyze_area(area: str) -> dict[str, Any]:
             latitude_farthest_from_ecuador,
             longitude_closest_to_greenwich,
             longitude_farthest_from_greenwich,
-        ) = specific_area_docks_and_incidents(session.docks, session.all_incidents)
+        ) = specific_area_docks_and_incidents(
+            session.docks,
+            session.all_incidents,
+            session.priority_dock_names,
+        )
         area_bounds = {
             "latitude_closest_to_ecuador": latitude_closest_to_ecuador,
             "latitude_farthest_from_ecuador": latitude_farthest_from_ecuador,
@@ -183,7 +209,8 @@ def run_maximize_optimization(
     incidents = session.active_incidents
     specific_docks = None
     if use_specific_docks:
-        specific_docks = [d for d in docks if d.name in METROSAFE_DOCK_LOCATIONS]
+        priority_names = session.priority_dock_names or METROSAFE_DOCK_LOCATIONS
+        specific_docks = [d for d in docks if d.name in priority_names]
 
     results = maximize_incidents_covered(
         docks,
