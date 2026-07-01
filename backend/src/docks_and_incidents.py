@@ -34,6 +34,11 @@ class Dock:
                 covered_incidents.append(incident)
                 total_distance_to_covered_incidents += distance(self, incident)
         return covered_incidents, total_distance_to_covered_incidents
+        
+    def change_drone_speed(self, new_drone_speed):
+        self.drone_speed = new_drone_speed
+        self.effective_radius = self.drone_speed * self.response_time
+        return self.effective_radius
 
     def change_response_time(self, new_response_time):
         self.response_time = new_response_time
