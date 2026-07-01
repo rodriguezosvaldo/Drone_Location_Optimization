@@ -6,13 +6,12 @@ from typing import Any
 
 from app.config import OUTPUT_DIR
 from app.services.session import session
-from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS, create_docks_and_incidents
-from src.optimization_model import maximize_incidents_covered, minimize_docks_used
-from src.test_multiple_optimizations import (
-    compare_optimizations_by_month,
-    fixed_locations,
-    no_fixed_locations,
+from src.docks_and_incidents import (
+    METROSAFE_DOCK_LOCATIONS,
+    create_docks_and_incidents,
+    specific_area_docks_and_incidents,
 )
+from src.optimization_model import maximize_incidents_covered
 from visualizations.charts_optimization_results import chart_incidents_covered_vs_k
 from visualizations.map_incidents_and_docks import create_map
 
@@ -22,55 +21,16 @@ def _ensure_backend_cwd() -> None:
     os.chdir(backend_root)
 
 
-def _serialize_result(result: dict | None) -> dict | None:
-    if result is None:
-        return None
+def _serialize_result(result: dict) -> dict:
+    total = result.get("amount_incidents_covered", 0)
+    coverage_rate = result.get("coverage_rate", 0)
     return {
-        "k": result.get("k"),
-        "incidents_covered": result.get("incidents_covered"),
-        "coverage_rate": round(result.get("coverage_rate", 0) * 100, 2),
-        "amount_selected_docks": result.get("amount_selected_docks"),
-        "selected_docks": [d.name for d in result.get("selected_docks", [])],
+        "k": result["k"],
+        "amount_incidents_covered": total,
+        "coverage_rate": round(coverage_rate * 100, 2),
+        "amount_selected_docks": result["amount_selected_docks"],
+        "selected_docks": [d.name for d in result["selected_docks"]],
     }
-
-
-def _serialize_results_list(results: list[dict]) -> list[dict]:
-    serialized = []
-    for entry in results:
-        serialized.append(
-            {
-                "k": entry["k"],
-                "incidents_covered": entry["incidents_covered"],
-                "coverage_rate": round(entry["coverage_rate"] * 100, 2),
-                "delta_coverage": entry.get("delta_coverage", 0),
-                "amount_selected_docks": entry["amount_selected_docks"],
-                "selected_docks": [d.name for d in entry["selected_docks"]],
-            }
-        )
-    return serialized
-
-
-def _serialize_monthly_results(results: list[dict]) -> list[dict]:
-    month_names = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ]
-    serialized = []
-    for entry in results:
-        month = entry["month"]
-        serialized.append(
-            {
-                "month": month,
-                "month_label": month_names[month - 1] if 1 <= month <= 12 else str(month),
-                "peak_day": str(entry["peak_day"]),
-                "peak_day_incidents": entry["peak_day_incidents"],
-                "incidents_covered": entry["incidents_covered"],
-                "coverage_rate": round(entry["coverage_rate"] * 100, 2),
-                "amount_selected_docks": entry["amount_selected_docks"],
-                "selected_docks": [d.name for d in entry["selected_docks"]],
-            }
-        )
-    return serialized
 
 
 def _relative_output_path(path: Path) -> str:
@@ -80,22 +40,21 @@ def _relative_output_path(path: Path) -> str:
         return str(path).replace("\\", "/")
 
 
-def _collect_output_files(prefix: str | None = None) -> list[str]:
-    files: list[str] = []
-    for folder in (OUTPUT_DIR, OUTPUT_DIR / "figures", OUTPUT_DIR / "tables"):
-        if not folder.exists():
-            continue
-        for path in folder.rglob("*"):
-            if path.is_file():
-                rel = _relative_output_path(path)
-                if prefix is None or Path(rel).name.startswith(prefix):
-                    files.append(rel)
-    return sorted(files)
+def _map_kwargs() -> dict[str, float]:
+    if session.area_bounds is None:
+        return {}
+    return dict(session.area_bounds)
 
 
 def _require_loaded_data() -> None:
-    if not session.loaded or session.docks is None or session.incidents is None:
-        raise ValueError("Load docks and incidents data before running optimizations.")
+    if not session.loaded or session.docks is None or session.incidents_in_one_day is None:
+        raise ValueError("Load docks and incidents data before continuing.")
+
+
+def _require_analyzed_area() -> None:
+    _require_loaded_data()
+    if not session.analyzed or session.active_docks is None or session.active_incidents is None:
+        raise ValueError("Select and analyze an area before running optimizations.")
 
 
 def load_data(docks_path: Path, incidents_path: Path) -> dict[str, Any]:
@@ -105,212 +64,182 @@ def load_data(docks_path: Path, incidents_path: Path) -> dict[str, Any]:
     if not incidents_path.exists():
         raise FileNotFoundError(f"Incidents file not found: {incidents_path}")
 
-    docks, incidents, incidents_by_month = create_docks_and_incidents(
+    docks, all_incidents, incidents_in_one_day = create_docks_and_incidents(
         str(docks_path),
         str(incidents_path),
     )
-    create_map(docks, incidents, "docks_and_incidents_map")
 
     session.docks = docks
-    session.incidents = incidents
-    session.incidents_by_month = incidents_by_month
+    session.all_incidents = all_incidents
+    session.incidents_in_one_day = incidents_in_one_day
+    session.active_docks = None
+    session.active_incidents = None
+    session.area_mode = None
+    session.area_bounds = None
+    session.analyzed = False
     session.docks_path = docks_path
     session.incidents_path = incidents_path
     session.docks_count = len(docks)
-    session.incidents_count = len(incidents)
+    session.incidents_count = len(incidents_in_one_day)
     session.loaded = True
 
     return {
         "docks_count": len(docks),
-        "incidents_count": len(incidents),
-        "docks_file": str(docks_path.name),
-        "incidents_file": str(incidents_path.name),
-        "map": "docks_and_incidents_map.html",
+        "incidents_count": len(incidents_in_one_day),
+        "docks_file": docks_path.name,
+        "incidents_file": incidents_path.name,
     }
 
 
 def get_status() -> dict[str, Any]:
     return {
         "loaded": session.loaded,
+        "analyzed": session.analyzed,
+        "area_mode": session.area_mode,
         "docks_count": session.docks_count,
         "incidents_count": session.incidents_count,
+        "active_docks_count": len(session.active_docks) if session.active_docks else 0,
+        "active_incidents_count": len(session.active_incidents) if session.active_incidents else 0,
         "docks_file": session.docks_path.name if session.docks_path else None,
         "incidents_file": session.incidents_path.name if session.incidents_path else None,
         "metrosafe_fixed_docks": len(METROSAFE_DOCK_LOCATIONS),
     }
 
 
-def run_single_optimization(
-    dock_locations_quantity: int,
-    max_dock_coverage_capacity: int,
-    generate_map: bool = True,
-) -> dict[str, Any]:
+def analyze_area(area: str) -> dict[str, Any]:
     _require_loaded_data()
     _ensure_backend_cwd()
 
-    result = maximize_incidents_covered(
-        session.docks,
-        session.incidents,
-        dock_locations_quantity,
-        max_dock_coverage_capacity,
+    if area == "full":
+        active_docks = session.docks
+        active_incidents = session.incidents_in_one_day
+        area_bounds = None
+    elif area == "specific":
+        (
+            active_docks,
+            active_incidents,
+            latitude_closest_to_ecuador,
+            latitude_farthest_from_ecuador,
+            longitude_closest_to_greenwich,
+            longitude_farthest_from_greenwich,
+        ) = specific_area_docks_and_incidents(session.docks, session.all_incidents)
+        area_bounds = {
+            "latitude_closest_to_ecuador": latitude_closest_to_ecuador,
+            "latitude_farthest_from_ecuador": latitude_farthest_from_ecuador,
+            "longitude_closest_to_greenwich": longitude_closest_to_greenwich,
+            "longitude_farthest_from_greenwich": longitude_farthest_from_greenwich,
+        }
+    else:
+        raise ValueError('area must be "full" or "specific".')
+
+    covered_incidents = [i for i in active_incidents if i.covered_by(active_docks)]
+    create_map(
+        active_docks,
+        active_incidents,
+        "docks_and_incidents_map",
+        covered_incidents,
+        **(area_bounds or {}),
     )
-    if result is None:
+
+    session.active_docks = active_docks
+    session.active_incidents = active_incidents
+    session.area_mode = area
+    session.area_bounds = area_bounds
+    session.analyzed = True
+
+    return {
+        "area": area,
+        "active_docks_count": len(active_docks),
+        "active_incidents_count": len(active_incidents),
+        "potentially_covered_incidents": len(covered_incidents),
+        "map": "docks_and_incidents_map.html",
+    }
+
+
+def _create_optimization_map(
+    results: dict,
+    map_name: str,
+) -> str:
+    create_map(
+        results["selected_docks"],
+        session.active_incidents,
+        map_name,
+        results["incidents_covered"],
+        results["dock_assignments"],
+        **_map_kwargs(),
+    )
+    return f"{map_name}.html"
+
+
+def run_maximize_optimization(
+    dock_locations_quantity: int,
+    use_specific_docks: bool = False,
+    increase_budget: bool = False,
+) -> dict[str, Any]:
+    _require_analyzed_area()
+    _ensure_backend_cwd()
+
+    docks = session.active_docks
+    incidents = session.active_incidents
+    specific_docks = None
+    if use_specific_docks:
+        specific_docks = [d for d in docks if d.name in METROSAFE_DOCK_LOCATIONS]
+
+    results = maximize_incidents_covered(
+        docks,
+        incidents,
+        dock_locations_quantity,
+        specific_docks,
+    )
+    if results is None:
         raise RuntimeError("Optimization did not produce a feasible result.")
 
-    outputs = []
-    if generate_map:
-        create_map(
-            result["selected_docks"],
-            result["covered_incidents"],
-            "optimized_map",
-            all_incidents=session.incidents,
-            covered_incidents=result["covered_incidents"],
+    prefix = "specific_docks" if use_specific_docks else "optimized"
+    map_name = f"{prefix}_map_{dock_locations_quantity}_docks"
+    outputs = [_create_optimization_map(results, map_name)]
+    results_list = [results]
+
+    amount_incidents_covered = results["amount_incidents_covered"]
+    incidents_to_cover = len(incidents)
+    current_k = results["k"]
+
+    if increase_budget and amount_incidents_covered < incidents_to_cover:
+        while amount_incidents_covered < incidents_to_cover:
+            current_k += 1
+            next_results = maximize_incidents_covered(
+                docks,
+                incidents,
+                current_k,
+                specific_docks,
+            )
+            if next_results is None:
+                break
+
+            budget_map_name = (
+                f"specific_docks_increase_budget_{current_k}_docks"
+                if use_specific_docks
+                else f"increase_budget_{current_k}_docks"
+            )
+            outputs.append(_create_optimization_map(next_results, budget_map_name))
+            results_list.append(next_results)
+
+            current_k = next_results["k"]
+            if next_results["amount_incidents_covered"] == amount_incidents_covered:
+                break
+            amount_incidents_covered = next_results["amount_incidents_covered"]
+            results = next_results
+
+        chart_scenario = (
+            "specific_docks_increase_budget" if use_specific_docks else "increase_budget"
         )
-        outputs.append("optimized_map.html")
+        chart_path = chart_incidents_covered_vs_k(results_list, scenario_name=chart_scenario)
+        outputs.append(_relative_output_path(chart_path))
 
     return {
-        "result": _serialize_result(result),
+        "scenario": "specific_docks" if use_specific_docks else "maximize_coverage",
+        "area": session.area_mode,
+        "increase_budget": increase_budget,
+        "result": _serialize_result(results),
+        "steps": [_serialize_result(r) for r in results_list],
         "outputs": outputs,
-    }
-
-
-def run_minimize_docks(
-    dock_locations_quantity: int,
-    max_dock_coverage_capacity: int,
-    generate_map: bool = True,
-) -> dict[str, Any]:
-    _require_loaded_data()
-    _ensure_backend_cwd()
-
-    result = minimize_docks_used(
-        session.docks,
-        session.incidents,
-        dock_locations_quantity,
-        max_dock_coverage_capacity,
-    )
-    if result is None:
-        raise RuntimeError("Dock minimization did not produce a feasible result.")
-
-    outputs = []
-    if generate_map:
-        create_map(
-            result["selected_docks"],
-            result["covered_incidents"],
-            "minimized_docks_map",
-            all_incidents=session.incidents,
-            covered_incidents=result["covered_incidents"],
-        )
-        outputs.append("minimized_docks_map.html")
-
-    return {
-        "result": _serialize_result(result),
-        "outputs": outputs,
-    }
-
-
-def run_no_fixed_scenario(
-    k_min: int,
-    k_max: int,
-    max_dock_coverage_capacity: int,
-) -> dict[str, Any]:
-    _require_loaded_data()
-    _ensure_backend_cwd()
-
-    results = no_fixed_locations(
-        session.docks,
-        session.incidents,
-        k_min,
-        k_max,
-        k_max,
-        max_dock_coverage_capacity,
-    )
-    chart_incidents_covered_vs_k(results, scenario_name="no_fixed")
-    return {
-        "scenario": "no_fixed",
-        "results": _serialize_results_list(results),
-        "outputs": _collect_output_files("optimization_"),
-    }
-
-
-def run_fixed_scenario(
-    k_max: int,
-    max_dock_coverage_capacity: int,
-) -> dict[str, Any]:
-    _require_loaded_data()
-    _ensure_backend_cwd()
-
-    if k_max < len(METROSAFE_DOCK_LOCATIONS):
-        raise ValueError(
-            f"k_max must be at least {len(METROSAFE_DOCK_LOCATIONS)} (MetroSafe fixed docks)."
-        )
-
-    results = fixed_locations(
-        session.docks,
-        session.incidents,
-        k_max,
-        k_max,
-        max_dock_coverage_capacity,
-    )
-    chart_incidents_covered_vs_k(results, scenario_name="fixed_metrosafe")
-    return {
-        "scenario": "fixed_metrosafe",
-        "results": _serialize_results_list(results),
-        "outputs": _collect_output_files("optimization_"),
-    }
-
-
-def run_compare_both_scenarios(
-    k_min: int,
-    k_max: int,
-    max_dock_coverage_capacity: int,
-) -> dict[str, Any]:
-    _require_loaded_data()
-    _ensure_backend_cwd()
-
-    if k_max < len(METROSAFE_DOCK_LOCATIONS):
-        raise ValueError(
-            f"k_max must be at least {len(METROSAFE_DOCK_LOCATIONS)} (MetroSafe fixed docks)."
-        )
-
-    results_no_fixed = no_fixed_locations(
-        session.docks,
-        session.incidents,
-        k_min,
-        k_max,
-        k_max,
-        max_dock_coverage_capacity,
-    )
-    results_fixed = fixed_locations(
-        session.docks,
-        session.incidents,
-        k_max,
-        k_max,
-        max_dock_coverage_capacity,
-    )
-    chart_incidents_covered_vs_k(results_no_fixed, scenario_name="no_fixed")
-    chart_incidents_covered_vs_k(results_fixed, scenario_name="fixed_metrosafe")
-
-    return {
-        "no_fixed": _serialize_results_list(results_no_fixed),
-        "fixed_metrosafe": _serialize_results_list(results_fixed),
-        "outputs": _collect_output_files("optimization_"),
-    }
-
-
-def run_monthly_comparison(
-    dock_locations_quantity: int,
-    max_dock_coverage_capacity: int,
-) -> dict[str, Any]:
-    _require_loaded_data()
-    _ensure_backend_cwd()
-
-    results = compare_optimizations_by_month(
-        session.docks,
-        session.incidents_by_month,
-        dock_locations_quantity,
-        max_dock_coverage_capacity,
-    )
-    return {
-        "results": _serialize_monthly_results(results),
-        "outputs": _collect_output_files("optimization_incidents_covered_by_month"),
     }

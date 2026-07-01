@@ -3,19 +3,19 @@ const API = "";
 const sections = {
   upload: {
     title: "Cargar datos",
-    subtitle: "Sube archivos Excel de docks e incidentes, o usa los datos predeterminados del proyecto.",
+    subtitle: "Sube archivos Excel o usa los datos predeterminados del proyecto.",
   },
-  single: {
-    title: "Optimización simple",
-    subtitle: "Ejecuta un modelo de optimización con parámetros personalizados.",
+  area: {
+    title: "Área de análisis",
+    subtitle: "Selecciona si analizar toda el área o solo la zona MetroSafe (como el menú principal del CLI).",
   },
-  batch: {
-    title: "Escenarios múltiples",
-    subtitle: "Compara configuraciones de docks con barridos y análisis mensual.",
+  optimize: {
+    title: "Optimización",
+    subtitle: "Maximiza incidentes cubiertos con restricción de presupuesto k, igual que el menú de optimización del CLI.",
   },
   outputs: {
     title: "Resultados",
-    subtitle: "Descarga mapas, gráficos y tablas generadas por las optimizaciones.",
+    subtitle: "Mapas y gráficos generados por el análisis y las optimizaciones.",
   },
 };
 
@@ -55,6 +55,20 @@ function hideResults() {
   $("results-panel").classList.add("hidden");
 }
 
+function updateAreaSummary(status) {
+  const card = $("area-summary-card");
+  const text = $("area-summary-text");
+
+  if (!status.analyzed) {
+    card.classList.add("hidden");
+    return;
+  }
+
+  const areaLabel = status.area_mode === "specific" ? "Área MetroSafe específica" : "Área completa";
+  text.textContent = `${areaLabel}: ${status.active_docks_count} docks, ${status.active_incidents_count} incidentes (día pico).`;
+  card.classList.remove("hidden");
+}
+
 async function refreshStatus() {
   try {
     const status = await api("/api/data/status");
@@ -62,12 +76,19 @@ async function refreshStatus() {
     const text = $("status-text");
 
     if (status.loaded) {
-      dot.className = "status-dot online";
-      text.textContent = `${status.docks_count} docks, ${status.incidents_count} incidentes cargados`;
+      dot.className = status.analyzed ? "status-dot online" : "status-dot warning";
+      if (status.analyzed) {
+        const area = status.area_mode === "specific" ? "área MetroSafe" : "área completa";
+        text.textContent = `${status.active_docks_count} docks, ${status.active_incidents_count} incidentes (${area})`;
+      } else {
+        text.textContent = `${status.docks_count} docks, ${status.incidents_count} incidentes — selecciona área`;
+      }
     } else {
       dot.className = "status-dot offline";
       text.textContent = "Sin datos cargados";
     }
+
+    updateAreaSummary(status);
   } catch {
     $("status-text").textContent = "No se pudo conectar al servidor";
   }
@@ -145,37 +166,17 @@ async function loadData() {
   }
 }
 
-async function runSingleOptimization() {
+async function analyzeArea(area) {
   try {
-    const result = await api("/api/optimize/single", {
+    const result = await api("/api/data/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        dock_locations_quantity: Number($("single-k").value),
-        max_dock_coverage_capacity: Number($("single-capacity").value),
-        generate_map: $("single-map").checked,
-      }),
+      body: JSON.stringify({ area }),
     });
-    showToast("Optimización completada.");
+    showToast(result.message);
     showResults(result);
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-async function runMinimizeDocks() {
-  try {
-    const result = await api("/api/optimize/minimize-docks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        dock_locations_quantity: Number($("minimize-k").value),
-        max_dock_coverage_capacity: Number($("minimize-capacity").value),
-        generate_map: $("minimize-map").checked,
-      }),
-    });
-    showToast("Minimización completada.");
-    showResults(result);
+    await refreshStatus();
+    loadOutputs();
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -194,7 +195,7 @@ function startJobPolling(jobId) {
         clearInterval(activeJobPoll);
         activeJobPoll = null;
         $("job-status-text").textContent = "Completado.";
-        showToast("Optimización en lote completada.");
+        showToast("Optimización completada.");
         showResults(job.result);
         loadOutputs();
       } else if (job.status === "failed") {
@@ -211,26 +212,35 @@ function startJobPolling(jobId) {
   }, 2500);
 }
 
-async function startBatchJob(endpoint, payload) {
+async function runOptimization(useSpecificDocks) {
+  const kInput = useSpecificDocks ? $("specific-k") : $("maximize-k");
+  const budgetInput = useSpecificDocks ? $("specific-increase-budget") : $("maximize-increase-budget");
+
+  const payload = {
+    dock_locations_quantity: Number(kInput.value),
+    use_specific_docks: useSpecificDocks,
+    increase_budget: budgetInput.checked,
+  };
+
   try {
-    const result = await api(endpoint, {
+    const result = await api("/api/optimize/maximize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    showToast(result.message);
-    startJobPolling(result.job_id);
+
+    if (result.job_id) {
+      showToast(result.message);
+      startJobPolling(result.job_id);
+      return;
+    }
+
+    showToast("Optimización completada.");
+    showResults(result);
+    loadOutputs();
   } catch (error) {
     showToast(error.message, "error");
   }
-}
-
-function batchPayload() {
-  return {
-    k_min: Number($("batch-k-min").value),
-    k_max: Number($("batch-k-max").value),
-    max_dock_coverage_capacity: Number($("batch-capacity").value),
-  };
 }
 
 async function loadOutputs() {
@@ -286,22 +296,10 @@ function bindEvents() {
   $("upload-docks-btn").addEventListener("click", () => uploadFile("/api/data/upload/docks", "docks-file"));
   $("upload-incidents-btn").addEventListener("click", () => uploadFile("/api/data/upload/incidents", "incidents-file"));
   $("load-data-btn").addEventListener("click", loadData);
-  $("run-single-btn").addEventListener("click", runSingleOptimization);
-  $("run-minimize-btn").addEventListener("click", runMinimizeDocks);
-  $("run-no-fixed-btn").addEventListener("click", () => startBatchJob("/api/optimize/no-fixed", batchPayload()));
-  $("run-fixed-btn").addEventListener("click", () =>
-    startBatchJob("/api/optimize/fixed", {
-      k_max: Number($("batch-k-max").value),
-      max_dock_coverage_capacity: Number($("batch-capacity").value),
-    })
-  );
-  $("run-compare-btn").addEventListener("click", () => startBatchJob("/api/optimize/compare-both", batchPayload()));
-  $("run-monthly-btn").addEventListener("click", () =>
-    startBatchJob("/api/optimize/by-month", {
-      dock_locations_quantity: Number($("monthly-k").value),
-      max_dock_coverage_capacity: Number($("batch-capacity").value),
-    })
-  );
+  $("analyze-full-btn").addEventListener("click", () => analyzeArea("full"));
+  $("analyze-specific-btn").addEventListener("click", () => analyzeArea("specific"));
+  $("run-maximize-btn").addEventListener("click", () => runOptimization(false));
+  $("run-specific-btn").addEventListener("click", () => runOptimization(true));
   $("refresh-outputs-btn").addEventListener("click", loadOutputs);
   $("close-results-btn").addEventListener("click", hideResults);
 }

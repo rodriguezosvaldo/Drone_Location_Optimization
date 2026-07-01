@@ -17,8 +17,10 @@ router = APIRouter(prefix="/api/data", tags=["data"])
 
 class LoadDataRequest(BaseModel):
     use_defaults: bool = True
-    docks_filename: str | None = None
-    incidents_filename: str | None = None
+
+
+class AnalyzeAreaRequest(BaseModel):
+    area: str = Field(..., pattern="^(full|specific)$")
 
 
 @router.get("/status")
@@ -72,5 +74,17 @@ def load_data(payload: LoadDataRequest):
         return {"message": "Data loaded successfully.", **result}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/analyze")
+def analyze_area(payload: AnalyzeAreaRequest):
+    try:
+        result = optimization_service.analyze_area(payload.area)
+        label = "entire area" if payload.area == "full" else "specific MetroSafe area"
+        return {"message": f"Analysis complete for {label}.", **result}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -21,8 +21,8 @@
       </div>
       <nav class="nav">
         <button class="nav-btn active" data-section="upload">1. Datos</button>
-        <button class="nav-btn" data-section="single">2. Optimización simple</button>
-        <button class="nav-btn" data-section="batch">3. Escenarios múltiples</button>
+        <button class="nav-btn" data-section="area">2. Área de análisis</button>
+        <button class="nav-btn" data-section="optimize">3. Optimización</button>
         <button class="nav-btn" data-section="outputs">4. Resultados</button>
       </nav>
       <div class="status-card" id="status-card">
@@ -69,6 +69,7 @@
 
         <div class="card actions-card">
           <h3>Cargar datos en memoria</h3>
+          <p class="hint">Equivalente al inicio del CLI: carga docks e incidentes del día pico.</p>
           <div class="radio-group">
             <label><input type="radio" name="data-source" value="defaults" checked> Usar archivos predeterminados del proyecto</label>
             <label><input type="radio" name="data-source" value="uploads"> Usar archivos subidos</label>
@@ -77,87 +78,53 @@
         </div>
       </section>
 
-      <section id="section-single" class="panel">
+      <section id="section-area" class="panel">
         <div class="grid-2">
           <div class="card">
-            <h3>Maximizar incidentes cubiertos</h3>
-            <p class="hint">Selecciona hasta k docks para maximizar la cobertura de incidentes.</p>
-            <div class="form-row">
-              <label>Número de docks (k)</label>
-              <input type="number" id="single-k" min="1" value="4">
-            </div>
-            <div class="form-row">
-              <label>Capacidad máxima por dock</label>
-              <input type="number" id="single-capacity" min="1" value="50">
-            </div>
-            <label class="checkbox-row">
-              <input type="checkbox" id="single-map" checked> Generar mapa optimizado
-            </label>
-            <button class="btn primary" id="run-single-btn">Ejecutar optimización</button>
+            <h3>Analizar toda el área</h3>
+            <p class="hint">Opción 1 del menú principal del CLI. Genera el mapa de docks e incidentes cubiertos en toda la región.</p>
+            <button class="btn primary" id="analyze-full-btn">Analizar área completa</button>
           </div>
 
           <div class="card">
-            <h3>Minimizar docks (100% cobertura)</h3>
-            <p class="hint">Encuentra el mínimo de docks necesarios para cubrir todos los incidentes alcanzables.</p>
-            <div class="form-row">
-              <label>Límite máximo de docks</label>
-              <input type="number" id="minimize-k" min="1" value="20">
-            </div>
-            <div class="form-row">
-              <label>Capacidad máxima por dock</label>
-              <input type="number" id="minimize-capacity" min="1" value="50">
-            </div>
-            <label class="checkbox-row">
-              <input type="checkbox" id="minimize-map" checked> Generar mapa
-            </label>
-            <button class="btn primary" id="run-minimize-btn">Ejecutar minimización</button>
+            <h3>Analizar área específica</h3>
+            <p class="hint">Opción 2 del CLI. Filtra docks e incidentes alrededor de los 8 docks MetroSafe actuales.</p>
+            <button class="btn primary" id="analyze-specific-btn">Analizar área MetroSafe</button>
           </div>
+        </div>
+
+        <div class="card hidden" id="area-summary-card">
+          <h3>Área activa</h3>
+          <p class="hint" id="area-summary-text"></p>
         </div>
       </section>
 
-      <section id="section-batch" class="panel">
-        <div class="card">
-          <h3>Parámetros comunes</h3>
-          <div class="grid-2 compact">
-            <div class="form-row">
-              <label>Capacidad máxima por dock</label>
-              <input type="number" id="batch-capacity" min="1" value="50">
-            </div>
-            <div class="form-row">
-              <label>k mínimo (escenario sin fijos)</label>
-              <input type="number" id="batch-k-min" min="1" value="1">
-            </div>
-            <div class="form-row">
-              <label>k máximo</label>
-              <input type="number" id="batch-k-max" min="1" value="10">
-            </div>
-            <div class="form-row">
-              <label>k para comparación mensual</label>
-              <input type="number" id="monthly-k" min="1" value="4">
-            </div>
-          </div>
-        </div>
-
+      <section id="section-optimize" class="panel">
         <div class="grid-2">
           <div class="card">
-            <h3>Sin ubicaciones fijas</h3>
-            <p class="hint">Barrido de k desde mínimo a máximo, deteniéndose cuando no hay ganancia marginal.</p>
-            <button class="btn primary" id="run-no-fixed-btn">Ejecutar escenario</button>
+            <h3>Maximizar incidentes cubiertos</h3>
+            <p class="hint">Opción 1 del menú de optimización del CLI.</p>
+            <div class="form-row">
+              <label>Número de docks disponibles (presupuesto k)</label>
+              <input type="number" id="maximize-k" min="1" value="4">
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="maximize-increase-budget"> Aumentar presupuesto hasta cubrir 100% de incidentes
+            </label>
+            <button class="btn primary" id="run-maximize-btn">Ejecutar optimización</button>
           </div>
+
           <div class="card">
-            <h3>8 docks MetroSafe fijos</h3>
-            <p class="hint">Mantiene los 8 docks actuales y optimiza docks adicionales.</p>
-            <button class="btn primary" id="run-fixed-btn">Ejecutar escenario</button>
-          </div>
-          <div class="card">
-            <h3>Comparar ambos escenarios</h3>
-            <p class="hint">Ejecuta los dos escenarios y genera gráficos comparativos.</p>
-            <button class="btn primary" id="run-compare-btn">Ejecutar comparación</button>
-          </div>
-          <div class="card">
-            <h3>Optimización por mes</h3>
-            <p class="hint">Optimiza el día pico de incidentes de cada mes.</p>
-            <button class="btn primary" id="run-monthly-btn">Ejecutar por mes</button>
+            <h3>Maximizar con docks MetroSafe específicos</h3>
+            <p class="hint">Opción 2 del CLI. Prioriza los 8 docks MetroSafe existentes.</p>
+            <div class="form-row">
+              <label>Número de docks disponibles (presupuesto k)</label>
+              <input type="number" id="specific-k" min="1" value="4">
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="specific-increase-budget"> Aumentar presupuesto hasta cubrir 100% de incidentes
+            </label>
+            <button class="btn primary" id="run-specific-btn">Ejecutar optimización</button>
           </div>
         </div>
 
@@ -165,7 +132,7 @@
           <h3>Progreso de optimización</h3>
           <div class="job-status">
             <span class="spinner" id="job-spinner"></span>
-            <span id="job-status-text">En ejecución...</span>
+            <span id="job-status-text">En ejecución... puede tardar varios minutos.</span>
           </div>
         </div>
       </section>

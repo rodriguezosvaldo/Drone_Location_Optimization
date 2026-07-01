@@ -118,6 +118,7 @@ body {
 
 .status-dot.offline { background: var(--danger); }
 .status-dot.online { background: var(--success); }
+.status-dot.warning { background: var(--warning); }
 
 .status-card p {
   color: var(--text-muted);
