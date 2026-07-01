@@ -122,6 +122,26 @@ function showMap(relativePath) {
   placeholder.classList.add("hidden");
 }
 
+function clearMap() {
+  currentMapPath = null;
+  const frame = $("map-frame");
+  const placeholder = $("map-placeholder");
+
+  frame.src = "";
+  frame.classList.add("hidden");
+  placeholder.classList.remove("hidden");
+}
+
+const TRASH_ICON = `
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <polyline points="3 6 5 6 21 6"></polyline>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+    <path d="M10 11v6"></path>
+    <path d="M14 11v6"></path>
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+  </svg>
+`;
+
 function showMapFromResult(result) {
   const mapPath = result.map || result.outputs?.find((o) => o.endsWith(".html"));
   if (mapPath) {
@@ -255,6 +275,39 @@ async function runOptimization() {
   }
 }
 
+async function deleteOutput(filePath) {
+  try {
+    const result = await api(`/api/outputs/file/${filePath}`, { method: "DELETE" });
+    showToast(result.message);
+    if (currentMapPath === filePath) {
+      clearMap();
+    }
+    await loadOutputs();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function deleteAllOutputs() {
+  if (!confirm("Delete all generated maps? This cannot be undone.")) {
+    return;
+  }
+
+  const btn = $("delete-all-outputs-btn");
+  btn.disabled = true;
+
+  try {
+    const result = await api("/api/outputs", { method: "DELETE" });
+    showToast(result.message);
+    clearMap();
+    await loadOutputs();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function loadOutputs() {
   const list = $("outputs-list");
   list.innerHTML = "<p class='hint'>Loading…</p>";
@@ -279,10 +332,14 @@ async function loadOutputs() {
         <div class="output-actions">
           <button class="btn ghost small view-btn">View</button>
           <a class="btn ghost small" href="/api/outputs/file/${file.path}" download="${file.name}">↓</a>
+          <button class="btn ghost small danger icon-btn delete-btn" title="Delete" aria-label="Delete ${file.name}">${TRASH_ICON}</button>
         </div>
       `;
       item.querySelector(".view-btn").addEventListener("click", () => {
         showMap(file.path);
+      });
+      item.querySelector(".delete-btn").addEventListener("click", () => {
+        deleteOutput(file.path);
       });
       list.appendChild(item);
     });
@@ -312,7 +369,7 @@ function bindEvents() {
   $("upload-btn").addEventListener("click", uploadAll);
   $("generate-map-btn").addEventListener("click", generateMap);
   $("run-optimize-btn").addEventListener("click", runOptimization);
-  $("refresh-outputs-btn").addEventListener("click", loadOutputs);
+  $("delete-all-outputs-btn").addEventListener("click", deleteAllOutputs);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

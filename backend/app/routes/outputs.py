@@ -44,3 +44,26 @@ def get_output_file(file_path: str):
     if not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail="File not found.")
     return FileResponse(full_path)
+
+
+@router.delete("/file/{file_path:path}")
+def delete_output_file(file_path: str):
+    full_path = _resolve_output_path(file_path)
+    if not full_path.exists() or not full_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found.")
+    full_path.unlink()
+    return {"message": f"Deleted {full_path.name}."}
+
+
+@router.delete("")
+def delete_all_outputs():
+    if not OUTPUT_DIR.exists():
+        return {"message": "No files to delete.", "deleted": 0}
+
+    deleted = 0
+    for path in OUTPUT_DIR.rglob("*.html"):
+        if path.is_file():
+            path.unlink()
+            deleted += 1
+
+    return {"message": f"Deleted {deleted} file(s).", "deleted": deleted}

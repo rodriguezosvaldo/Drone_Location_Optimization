@@ -1,22 +1,20 @@
 from pathlib import Path
-
 import folium
-from src.docks_and_incidents import METROSAFE_DOCK_LOCATIONS
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = BACKEND_ROOT.parent / "output"
 
 DOCK_COLOR = "#1f77b4"
-METROSAFE_DOCK_BORDER_COLOR = "#1B5E20"
-METROSAFE_DOCK_FILL_COLOR = "#A5D6A7"
+PRIORITY_DOCK_BORDER_COLOR = "#1B5E20"
+PRIORITY_DOCK_FILL_COLOR = "#A5D6A7"
 INCIDENT_COVERED_COLOR = "#d62728"
 INCIDENT_UNCOVERED_COLOR = "#6A1B9A"
 BOUNDARY_LINE_COLOR = "#E65100"
 
 
-def _dock_colors(dock):
-    if dock.name in METROSAFE_DOCK_LOCATIONS:
-        return METROSAFE_DOCK_BORDER_COLOR, METROSAFE_DOCK_FILL_COLOR
+def _dock_colors(dock, priority_dock_names):
+    if dock.name in priority_dock_names:
+        return PRIORITY_DOCK_BORDER_COLOR, PRIORITY_DOCK_FILL_COLOR
     return DOCK_COLOR, DOCK_COLOR
 
 def _add_incident_marker(map, incident, color):
@@ -88,10 +86,11 @@ def _add_area_boundary_lines(
     ).add_to(map)
 
 def create_map(
-    docks,
-    incidents,
-    map_name,
-    incidents_covered,
+    priority_dock_names=None,
+    docks=None,
+    incidents=None,
+    map_name="map",
+    incidents_covered=None,
     dock_assignments=None,
     latitude_closest_to_ecuador=None,
     latitude_farthest_from_ecuador=None,
@@ -139,7 +138,7 @@ def create_map(
                 covered_incidents = dock_assignments.get(dock, [])
             else:
                 covered_incidents, _ = dock.incidents_covered(incidents_covered)
-            border_color, fill_color = _dock_colors(dock)
+            border_color, fill_color = _dock_colors(dock, priority_dock_names)
             folium.Circle(
                 location=[dock.latitude, dock.longitude],
                 radius=dock_radius,
@@ -193,7 +192,7 @@ def create_map(
             </div>
             <div>
                 <span style="color:{DOCK_COLOR};">&#9679;</span> Dock
-                <span style="margin-left: 10px; color:{METROSAFE_DOCK_BORDER_COLOR};">&#9679;</span> MetroSafe dock
+                <span style="margin-left: 10px; color:{PRIORITY_DOCK_BORDER_COLOR};">&#9679;</span> Priority dock
             </div>
         </div>
         """

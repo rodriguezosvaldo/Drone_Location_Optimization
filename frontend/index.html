@@ -31,11 +31,11 @@
           <div class="upload-field">
             <div class="upload-field-header">
               <label class="field-label" for="incidents-file">Incidents file</label>
-              <p class="hint">Required columns: <code>incident_number</code>, <code>latitude</code>, <code>longitude</code>, <code>date</code></p>
+              <p class="hint">Required columns: <code>name</code>, <code>latitude</code>, <code>longitude</code>, <code>date</code></p>
             </div>
             <label class="file-drop" id="incidents-drop">
               <input type="file" id="incidents-file" accept=".xlsx,.xls">
-              <span>Drag or select incidents.xlsx</span>
+              <span>Drag or select</span>
             </label>
             <p class="file-name" id="incidents-file-name">No file selected</p>
           </div>
@@ -47,19 +47,19 @@
             </div>
             <label class="file-drop" id="docks-drop">
               <input type="file" id="docks-file" accept=".xlsx,.xls">
-              <span>Drag or select docks.xlsx</span>
+              <span>Drag or select</span>
             </label>
             <p class="file-name" id="docks-file-name">No file selected</p>
           </div>
 
           <div class="upload-field">
             <div class="upload-field-header">
-              <label class="field-label" for="priority-file">Priority Docks</label>
+              <label class="field-label" for="priority-file">Priority Docks file</label>
               <p class="hint">Required column: <code>name</code> (must match docks file)</p>
             </div>
             <label class="file-drop" id="priority-drop">
               <input type="file" id="priority-file" accept=".xlsx,.xls">
-              <span>Drag or select priority_docks.xlsx</span>
+              <span>Drag or select</span>
             </label>
             <p class="file-name" id="priority-file-name">No file selected</p>
           </div>
@@ -116,7 +116,7 @@
         <div class="card">
           <div class="outputs-header">
             <h3>Generated files</h3>
-            <button class="btn ghost small" id="refresh-outputs-btn">Refresh</button>
+            <button class="btn ghost small danger" id="delete-all-outputs-btn">Delete All</button>
           </div>
           <div id="outputs-list" class="outputs-list"></div>
         </div>
@@ -136,6 +136,6 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

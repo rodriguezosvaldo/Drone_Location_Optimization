@@ -466,6 +466,27 @@ input[type="number"] {
   flex-shrink: 0;
 }
 
+.btn.danger {
+  color: #e05252;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: rgba(224, 82, 82, 0.12);
+}
+
+.btn.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.35rem;
+  line-height: 1;
+}
+
+.btn.icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .workspace {
   grid-column: 2;
   grid-row: 1;

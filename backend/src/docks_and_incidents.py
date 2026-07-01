@@ -14,16 +14,6 @@ CYCLE_TIME = MAX_MISSION_TIME + BATTERY_RECHARGE_TIME # 1800 + 3600 = 5400 secon
 DRONE_DISPOSITION_TIME = 57600 # 57600 seconds = 16 hours (Two shifts of 8 hours each)
 DRONE_COVERAGE_CAPACITY = int(DRONE_DISPOSITION_TIME / CYCLE_TIME) # 57600 / 5400 = 10.66 = 10 incidents per day
 
-METROSAFE_DOCK_LOCATIONS = [
-    "1510 South 6th Street",
-    "1525 Winter Avenue",
-    "2620 Frankfort Avenue",
-    "2900 Hikes Lane",
-    "3228 River Park Drive",
-    "3511 Fincastle Road",
-    "4535 Manslick Road",
-    "601 West Chestnut Street",
-]
 
 class Dock:
     def __init__(self, name, latitude, longitude):
@@ -70,15 +60,17 @@ def coverage(dock, incident):
     return distance(dock, incident) <= dock.effective_radius
 
 # Returns the docks and incidents within a specific area around the specific docks
-def specific_area_docks_and_incidents(docks, incidents, priority_dock_names=None):
+def specific_area_docks_and_incidents(docks, incidents, priority_dock_names):
     EXTRA_DISTANCE_DEGREES = 0.014 # 0.014 degrees = 1 mile to get an area slightly larger than the effective radius
-    priority_names = priority_dock_names or METROSAFE_DOCK_LOCATIONS
-    specific_docks = [d for d in docks if d.name in priority_names]
-    if not specific_docks:
-        raise ValueError("No priority docks found in the loaded docks dataset.")
-    all_docks_latitudes = [d.latitude for d in specific_docks]
-    all_docks_longitudes = [d.longitude for d in specific_docks]
-    effective_radius = max(d.effective_radius for d in specific_docks)
+    priority_docks = []
+    for dock in docks:
+        if dock.name in priority_dock_names:
+            priority_docks.append(dock)
+    if not priority_docks:
+        raise ValueError("No priority docks found in the loaded docks dataset")
+    all_docks_latitudes = [d.latitude for d in priority_docks]
+    all_docks_longitudes = [d.longitude for d in priority_docks]
+    effective_radius = max(d.effective_radius for d in priority_docks)
     effective_radius_degrees = effective_radius / 69 # miles to degrees
     
 
@@ -88,15 +80,15 @@ def specific_area_docks_and_incidents(docks, incidents, priority_dock_names=None
     longitude_closest_to_greenwich = min(all_docks_longitudes) - extra_distance
     longitude_farthest_from_greenwich = max(all_docks_longitudes) + extra_distance
 
-    specific_area_docks = [dock for dock in docks if dock.latitude >= latitude_closest_to_ecuador and dock.latitude <= latitude_farthest_from_ecuador and dock.longitude >= longitude_closest_to_greenwich and dock.longitude <= longitude_farthest_from_greenwich]
-    specific_area_incidents = [incident for incident in incidents if incident.latitude >= latitude_closest_to_ecuador and incident.latitude <= latitude_farthest_from_ecuador and incident.longitude >= longitude_closest_to_greenwich and incident.longitude <= longitude_farthest_from_greenwich] # From all incidents, get only the ones within the specific area
-    specific_area_incidents = get_incidents_by_date(specific_area_incidents) # Get the incidents in one day for the specific area
-    print(f"Specific area docks: {len(specific_area_docks)}")
-    print(f"Specific area incidents: {len(specific_area_incidents)}")
+    priority_area_docks = [dock for dock in docks if dock.latitude >= latitude_closest_to_ecuador and dock.latitude <= latitude_farthest_from_ecuador and dock.longitude >= longitude_closest_to_greenwich and dock.longitude <= longitude_farthest_from_greenwich]
+    priority_area_incidents = [incident for incident in incidents if incident.latitude >= latitude_closest_to_ecuador and incident.latitude <= latitude_farthest_from_ecuador and incident.longitude >= longitude_closest_to_greenwich and incident.longitude <= longitude_farthest_from_greenwich] # From all incidents, get only the ones within the specific area
+    priority_area_incidents_by_date = get_incidents_by_date(priority_area_incidents) # Get the incidents in one day for the specific area
+    print(f"Priority area docks: {len(priority_area_docks)}")
+    print(f"Priority area incidents: {len(priority_area_incidents_by_date)}")
 
     return (
-        specific_area_docks,
-        specific_area_incidents,
+        priority_area_docks,
+        priority_area_incidents_by_date,
         latitude_closest_to_ecuador,
         latitude_farthest_from_ecuador,
         longitude_closest_to_greenwich,
@@ -117,10 +109,18 @@ def get_incidents(excel_file_path):
     incidents = []
     incidents_data = pd.read_excel(excel_file_path)
     for index, row in incidents_data.iterrows():
-        incident = Incident(row['incident_number'], row['latitude'], row['longitude'], row['date'])
+        incident = Incident(row['name'], row['latitude'], row['longitude'], row['date'])
         incidents.append(incident)
     print(f"Incidents created: {len(incidents)}")
     return incidents
+
+def get_priority_dock_names(excel_file_path):
+    priority_docks_list = []
+    priority_docks_data = pd.read_excel(excel_file_path)
+    for index, row in priority_docks_data.iterrows():
+        priority_docks_list.append(row['name'])
+    print(f"Priority docks list created: {len(priority_docks_list)}")
+    return priority_docks_list
 
 def _incident_date(incident):
     """Normalize incident.date to a datetime.date."""
@@ -200,10 +200,11 @@ def get_incidents_by_date(incidents):
 
     return incidents_in_one_day
 
-def create_docks_and_incidents(docks_excel_file_path, incidents_excel_file_path):
+def create_docks_and_incidents(docks_excel_file_path, incidents_excel_file_path, priority_docks_excel_file_path):
     print("Creating docks and incidents...")
     docks = get_docks(docks_excel_file_path)
     incidents = get_incidents(incidents_excel_file_path)
     incidents_in_one_day = get_incidents_by_date(incidents)
+    priority_dock_names = get_priority_dock_names(priority_docks_excel_file_path)
 
-    return docks, incidents, incidents_in_one_day
+    return docks, incidents, incidents_in_one_day, priority_dock_names
