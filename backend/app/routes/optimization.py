@@ -7,36 +7,65 @@ from app.services.jobs import job_manager
 router = APIRouter(prefix="/api/optimize", tags=["optimization"])
 
 
-class MaximizeRequest(BaseModel):
-    dock_locations_quantity: int = Field(..., ge=1, description="Maximum number of dock locations (budget)")
-    use_specific_docks: bool = Field(
+class OptimizeRequest(BaseModel):
+    area: str = Field(..., pattern="^(full|specific)$")
+    peak_day_only: bool = Field(
+        True,
+        description="Use only incidents from the busiest day in the selected area",
+    )
+    budget: int = Field(..., ge=1, description="Maximum number of dock locations to open")
+    open_priority_docks_first: bool = Field(
         False,
-        description="Prioritize docks from the uploaded priority docks file",
+        description="Prioritize opening docks from the priority docks file",
+    )
+    percentage_to_cover: float = Field(
+        100,
+        ge=1,
+        le=100,
+        description="Maximum percentage of incidents that may be covered",
+    )
+    iterative: bool = Field(
+        False,
+        description="Run repeated optimizations increasing budget and/or response time",
     )
     increase_budget: bool = Field(
         False,
-        description="Increment k until 100% of incidents are covered",
+        description="Increase budget by 1 on each iterative step",
+    )
+    increase_response_time: bool = Field(
+        False,
+        description="Increase drone response time on each iterative step",
     )
 
 
-@router.post("/maximize")
-def optimize_maximize(payload: MaximizeRequest):
+@router.post("/run")
+def optimize_run(payload: OptimizeRequest):
     try:
-        if payload.increase_budget:
+        if payload.iterative:
             job_id = job_manager.create(
                 "maximize_incidents_covered",
-                lambda: optimization_service.run_maximize_optimization(
-                    payload.dock_locations_quantity,
-                    payload.use_specific_docks,
-                    payload.increase_budget,
+                lambda: optimization_service.run_optimization(
+                    area=payload.area,
+                    peak_day_only=payload.peak_day_only,
+                    budget=payload.budget,
+                    open_priority_docks_first=payload.open_priority_docks_first,
+                    percentage_to_cover=payload.percentage_to_cover,
+                    iterative=True,
+                    increase_budget=payload.increase_budget,
+                    increase_response_time=payload.increase_response_time,
                 ),
             )
             return {"job_id": job_id, "message": "Optimization started."}
 
-        return optimization_service.run_maximize_optimization(
-            payload.dock_locations_quantity,
-            payload.use_specific_docks,
-            payload.increase_budget,
+        return optimization_service.run_optimization(
+            area=payload.area,
+            peak_day_only=payload.peak_day_only,
+            budget=payload.budget,
+            open_priority_docks_first=payload.open_priority_docks_first,
+            percentage_to_cover=payload.percentage_to_cover,
+            iterative=False,
+            increase_budget=False,
+            increase_response_time=False,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

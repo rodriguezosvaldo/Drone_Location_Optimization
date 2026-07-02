@@ -48,7 +48,6 @@ MetroSafe-UofL_Drone_Optimization/
 │   │   ├── main.py
 │   │   ├── routes/
 │   │   └── services/
-│   ├── cli/main.py                # Legacy interactive CLI menu
 │   ├── src/                       # Optimization models
 │   ├── visualizations/            # Optimization maps and charts
 │   ├── uploads/                   # User-uploaded Excel files (web UI)
@@ -96,7 +95,7 @@ pip install -r requirements.txt
 
 Reference portal: [Louisville Metro Open Data](https://data.louisvilleky.gov/).
 
-Place raw files in `data/` before running preparation pipelines. Clean, geocoded Excel outputs are written to `output/`. The web app and optimization CLI read processed files from `output/` by default.
+Place raw files in `data/` before running preparation pipelines. Clean, geocoded Excel outputs are written to `output/`. The web app reads processed files from `output/` by default.
 
 ## Usage
 
@@ -167,18 +166,23 @@ Writes to `output/figures/`:
 - `lmpd_distribution_by_zipcode.png`
 - `jcps_locations_by_zipcode.png` (ZIP order aligned to LMPD top 10)
 
-### 3. Dock and incident optimization (CLI)
+### 3. Dock and incident optimization (web app)
+
+Start the web application from the project root:
 
 ```powershell
-cd backend
-python cli/main.py
+python run_web.py
 ```
 
-Expected menu flow:
+In the **Optimization** tab:
 
-1. Create `Dock` and `Incident` objects from Excel files with coordinates.
-2. Run `maximize_incidents_covered` (up to `DOCK_LOCATIONS_QUANTITY`).
-3. Open HTML map at `output/optimized_map.html`.
+1. Upload incidents, docks, and priority docks Excel files.
+2. Choose **Entire Area** or **Priority Area** and optionally generate a preview map.
+3. Toggle **Peak day incidents** to analyze only the busiest day in the selected area, or disable it to use all incidents.
+4. Set **Budget**, **Percentage to cover**, and optionally **Open priority docks first**, then click **Run**.
+5. Use the iterative **Run** options to increase response time and/or budget until coverage stops improving.
+
+The optimizer uses `MaximizeIncidentsCovered` in `backend/src/optimization_model.py`.
 
 **Coverage parameters** (`src/docks_and_incidents.py`):
 

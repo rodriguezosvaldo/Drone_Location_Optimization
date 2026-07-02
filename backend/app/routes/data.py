@@ -16,6 +16,10 @@ router = APIRouter(prefix="/api/data", tags=["data"])
 
 class AnalyzeAreaRequest(BaseModel):
     area: str = Field(..., pattern="^(full|specific)$")
+    peak_day_only: bool = Field(
+        False,
+        description="Use only incidents from the busiest day in the selected area",
+    )
 
 
 def _missing_upload_labels() -> list[str]:
@@ -139,9 +143,10 @@ def reload_uploaded_data():
 @router.post("/analyze")
 def analyze_area(payload: AnalyzeAreaRequest):
     try:
-        result = optimization_service.analyze_area(payload.area)
+        result = optimization_service.analyze_area(payload.area, payload.peak_day_only)
         label = "entire area" if payload.area == "full" else "priority area"
-        return {"message": f"Map generated for the {label}.", **result}
+        day_label = "peak day" if payload.peak_day_only else "all incidents"
+        return {"message": f"Map generated for the {label} ({day_label}).", **result}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

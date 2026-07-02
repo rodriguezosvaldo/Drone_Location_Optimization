@@ -70,7 +70,7 @@
       </section>
 
       <section id="section-optimization" class="sidebar-panel">
-        <div class="card">
+        <div class="card optimization-card">
           <fieldset class="radio-group" id="area-radio-group">
             <legend class="sr-only">Analysis area</legend>
             <label class="radio-option">
@@ -88,29 +88,77 @@
             Area around priority docks
           </div>
 
+          <div class="toggle-row">
+            <label class="toggle-label" for="peak-day-toggle">Peak day incidents</label>
+            <button type="button" class="info-btn" id="peak-day-info-btn" aria-label="About peak day incidents">!</button>
+            <label class="toggle-switch">
+              <input type="checkbox" id="peak-day-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="tooltip-popup hidden" id="peak-day-tooltip" role="tooltip">
+            When enabled, only incidents from the busiest day in the selected area are used. When disabled, all incidents in the dataset for that area are used.
+          </div>
+
           <button class="btn outline full-width" id="generate-map-btn">Generate Map</button>
         </div>
 
-        <details class="card advanced-card">
-          <summary>Advanced optimization</summary>
-          <div class="form-row">
-            <label for="optimize-k">Number of docks (budget k)</label>
-            <input type="number" id="optimize-k" min="1" value="4">
+        <div class="card optimization-card">
+          <h3 class="section-title">Optimization Params</h3>
+
+          <div class="toggle-row">
+            <label class="toggle-label" for="priority-docks-first-toggle">Open priority docks first</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="priority-docks-first-toggle">
+              <span class="toggle-slider"></span>
+            </label>
           </div>
-          <label class="checkbox-row">
-            <input type="checkbox" id="optimize-priority-docks">
-            Prioritize priority docks
-          </label>
-          <label class="checkbox-row">
-            <input type="checkbox" id="optimize-increase-budget">
-            Increase budget until 100% covered
-          </label>
-          <button class="btn outline full-width" id="run-optimize-btn">Run Optimization</button>
+
+          <div class="param-row">
+            <div class="param-label">
+              <label for="optimize-budget">Budget</label>
+              <button type="button" class="info-btn" id="budget-info-btn" aria-label="About budget">!</button>
+            </div>
+            <input type="number" id="optimize-budget" class="param-input" min="1" value="4">
+          </div>
+          <div class="tooltip-popup hidden" id="budget-tooltip" role="tooltip">
+            Maximum number of docks that may be opened.
+          </div>
+
+          <div class="param-row">
+            <label class="param-label" for="optimize-percentage">Percentage to cover</label>
+            <input type="number" id="optimize-percentage" class="param-input" min="1" max="100" value="100">
+          </div>
+
+          <button class="btn outline full-width" id="run-optimize-btn">Run</button>
+
           <div class="job-status hidden" id="job-status">
             <span class="spinner"></span>
             <span id="job-status-text">Running optimization…</span>
           </div>
-        </details>
+
+          <div class="optimization-results hidden" id="optimization-results"></div>
+
+          <div class="iterative-section hidden" id="iterative-section">
+            <div class="toggle-row compact">
+              <label class="toggle-label" for="increase-response-time-toggle">Increase response time?</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="increase-response-time-toggle">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-row compact">
+              <label class="toggle-label" for="increase-budget-toggle">Increase budget?</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="increase-budget-toggle">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <button class="btn outline full-width" id="run-iterative-btn">Run</button>
+          </div>
+        </div>
+
+        <button class="btn outline full-width optimization-refresh-btn" id="optimization-refresh-btn">Refresh</button>
       </section>
 
       <section id="section-results" class="sidebar-panel">
@@ -137,6 +185,6 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="js/app.js?v=8"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>

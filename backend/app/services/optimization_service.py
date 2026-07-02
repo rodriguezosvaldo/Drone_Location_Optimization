@@ -7,10 +7,14 @@ from typing import Any
 from app.config import OUTPUT_DIR
 from app.services.session import session
 from src.docks_and_incidents import (
+    RESPONSE_TIME,
+    RESPONSE_TIME_STEP_HOURS,
+    clone_docks,
     create_docks_and_incidents,
-    specific_area_docks_and_incidents,
+    filter_priority_area,
+    peak_day_incidents,
 )
-from src.optimization_model import maximize_incidents_covered
+from src.optimization_model import MaximizeIncidentsCovered
 from visualizations.charts_optimization_results import chart_incidents_covered_vs_k
 from visualizations.map_incidents_and_docks import create_map
 
@@ -24,22 +28,25 @@ def _priority_dock_names() -> list[str]:
     return list(session.priority_dock_names or [])
 
 
-def _priority_docks() -> list[Any]:
-    if not session.docks or not session.priority_dock_names:
+def _priority_docks(docks: list[Any]) -> list[Any]:
+    if not docks or not session.priority_dock_names:
         return []
-    return [dock for dock in session.docks if dock.name in session.priority_dock_names]
+    return [dock for dock in docks if dock.name in session.priority_dock_names]
 
 
 def _serialize_result(result: dict) -> dict:
     total = result.get("amount_incidents_covered", 0)
     coverage_rate = result.get("coverage_rate", 0)
-    return {
+    payload = {
         "k": result["k"],
         "amount_incidents_covered": total,
         "coverage_rate": round(coverage_rate * 100, 2),
         "amount_selected_docks": result["amount_selected_docks"],
         "selected_docks": [d.name for d in result["selected_docks"]],
     }
+    if result.get("response_time") is not None:
+        payload["response_time_minutes"] = round(result["response_time"] * 60, 2)
+    return payload
 
 
 def _relative_output_path(path: Path) -> str:
@@ -59,16 +66,71 @@ def _require_loaded_data() -> None:
     if (
         not session.loaded
         or session.docks is None
-        or session.incidents_in_one_day is None
+        or session.all_incidents is None
         or not session.priority_dock_names
     ):
         raise ValueError("Upload incidents, docks, and priority docks files before continuing.")
 
 
-def _require_analyzed_area() -> None:
+def _resolve_area_context(area: str, peak_day_only: bool) -> tuple[list[Any], list[Any], dict[str, float] | None]:
     _require_loaded_data()
-    if not session.analyzed or session.active_docks is None or session.active_incidents is None:
-        raise ValueError("Select and analyze an area before running optimizations.")
+
+    if area == "full":
+        docks = session.docks
+        incidents = session.incidents_in_one_day if peak_day_only else session.all_incidents
+        bounds = None
+    elif area == "specific":
+        if not session.priority_dock_names:
+            raise ValueError("Upload a priority docks file before using the priority area.")
+        if session.priority_area_docks is None or session.priority_area_all_incidents is None:
+            docks, area_incidents, bounds = filter_priority_area(
+                session.docks,
+                session.all_incidents,
+                session.priority_dock_names,
+            )
+            session.priority_area_docks = docks
+            session.priority_area_all_incidents = area_incidents
+            session.priority_area_peak_incidents = peak_day_incidents(area_incidents)
+            session.priority_area_bounds = bounds
+        docks = session.priority_area_docks
+        bounds = session.priority_area_bounds
+        incidents = (
+            session.priority_area_peak_incidents
+            if peak_day_only
+            else session.priority_area_all_incidents
+        )
+    else:
+        raise ValueError('area must be "full" or "specific".')
+
+    if not incidents:
+        raise ValueError("No incidents available for the selected area and day filter.")
+
+    return docks, incidents, bounds
+
+
+def _precompute_priority_area() -> None:
+    if not session.docks or not session.all_incidents or not session.priority_dock_names:
+        session.priority_area_docks = None
+        session.priority_area_all_incidents = None
+        session.priority_area_peak_incidents = None
+        session.priority_area_bounds = None
+        session.priority_area_all_incidents_count = 0
+        session.priority_area_peak_incidents_count = 0
+        return
+
+    docks, area_incidents, bounds = filter_priority_area(
+        session.docks,
+        session.all_incidents,
+        session.priority_dock_names,
+    )
+    peak_incidents = peak_day_incidents(area_incidents)
+
+    session.priority_area_docks = docks
+    session.priority_area_all_incidents = area_incidents
+    session.priority_area_peak_incidents = peak_incidents
+    session.priority_area_bounds = bounds
+    session.priority_area_all_incidents_count = len(area_incidents)
+    session.priority_area_peak_incidents_count = len(peak_incidents)
 
 
 def load_priority_docks(priority_path: Path) -> dict[str, Any]:
@@ -87,6 +149,8 @@ def load_priority_docks(priority_path: Path) -> dict[str, Any]:
         raise ValueError("Priority docks file does not contain any dock names.")
 
     session.priority_dock_names = names
+    if session.loaded and session.docks and session.all_incidents:
+        _precompute_priority_area()
     return {"priority_docks_count": len(names)}
 
 
@@ -121,12 +185,17 @@ def load_data(
     session.docks_path = docks_path
     session.incidents_path = incidents_path
     session.docks_count = len(docks)
-    session.incidents_count = len(incidents_in_one_day)
+    session.all_incidents_count = len(all_incidents)
+    session.full_peak_incidents_count = len(incidents_in_one_day)
+    _precompute_priority_area()
     session.loaded = True
 
     result = {
         "docks_count": len(docks),
-        "incidents_count": len(incidents_in_one_day),
+        "all_incidents_count": len(all_incidents),
+        "full_peak_incidents_count": len(incidents_in_one_day),
+        "priority_area_all_incidents_count": session.priority_area_all_incidents_count,
+        "priority_area_peak_incidents_count": session.priority_area_peak_incidents_count,
         "docks_file": docks_path.name,
         "incidents_file": incidents_path.name,
         "priority_docks_count": len(session.priority_dock_names),
@@ -140,7 +209,10 @@ def get_status() -> dict[str, Any]:
         "analyzed": session.analyzed,
         "area_mode": session.area_mode,
         "docks_count": session.docks_count,
-        "incidents_count": session.incidents_count,
+        "all_incidents_count": session.all_incidents_count,
+        "full_peak_incidents_count": session.full_peak_incidents_count,
+        "priority_area_all_incidents_count": session.priority_area_all_incidents_count,
+        "priority_area_peak_incidents_count": session.priority_area_peak_incidents_count,
         "active_docks_count": len(session.active_docks) if session.active_docks else 0,
         "active_incidents_count": len(session.active_incidents) if session.active_incidents else 0,
         "docks_file": session.docks_path.name if session.docks_path else None,
@@ -150,37 +222,11 @@ def get_status() -> dict[str, Any]:
     }
 
 
-def analyze_area(area: str) -> dict[str, Any]:
+def analyze_area(area: str, peak_day_only: bool = False) -> dict[str, Any]:
     _require_loaded_data()
     _ensure_backend_cwd()
 
-    if area == "full":
-        active_docks = session.docks
-        active_incidents = session.incidents_in_one_day
-        area_bounds = None
-    elif area == "specific":
-        if not session.priority_dock_names:
-            raise ValueError("Upload a priority docks file before analyzing the priority area.")
-        (
-            active_docks,
-            active_incidents,
-            latitude_closest_to_ecuador,
-            latitude_farthest_from_ecuador,
-            longitude_closest_to_greenwich,
-            longitude_farthest_from_greenwich,
-        ) = specific_area_docks_and_incidents(
-            session.docks,
-            session.all_incidents,
-            session.priority_dock_names,
-        )
-        area_bounds = {
-            "latitude_closest_to_ecuador": latitude_closest_to_ecuador,
-            "latitude_farthest_from_ecuador": latitude_farthest_from_ecuador,
-            "longitude_closest_to_greenwich": longitude_closest_to_greenwich,
-            "longitude_farthest_from_greenwich": longitude_farthest_from_greenwich,
-        }
-    else:
-        raise ValueError('area must be "full" or "specific".')
+    active_docks, active_incidents, area_bounds = _resolve_area_context(area, peak_day_only)
 
     covered_incidents = [incident for incident in active_incidents if incident.covered_by(active_docks)]
     create_map(
@@ -200,6 +246,7 @@ def analyze_area(area: str) -> dict[str, Any]:
 
     return {
         "area": area,
+        "peak_day_only": peak_day_only,
         "active_docks_count": len(active_docks),
         "active_incidents_count": len(active_incidents),
         "potentially_covered_incidents": len(covered_incidents),
@@ -209,94 +256,150 @@ def analyze_area(area: str) -> dict[str, Any]:
 
 def _create_optimization_map(
     results: dict,
+    incidents: list[Any],
     map_name: str,
+    area_bounds: dict[str, float] | None,
 ) -> str:
     create_map(
         _priority_dock_names(),
         results["selected_docks"],
-        session.active_incidents,
+        incidents,
         map_name,
         results["incidents_covered"],
         results["dock_assignments"],
-        **_map_kwargs(),
+        **(area_bounds or {}),
     )
     return f"{map_name}.html"
 
 
-def run_maximize_optimization(
-    dock_locations_quantity: int,
-    use_specific_docks: bool = False,
+def _run_single_optimization(
+    docks: list[Any],
+    incidents: list[Any],
+    budget: int,
+    priority_docks: list[Any] | None,
+    percentage_to_cover: float,
+) -> dict | None:
+    optimizer = MaximizeIncidentsCovered(
+        docks=docks,
+        incidents=incidents,
+        budget=budget,
+        priority_docks=priority_docks,
+        percentage_incidents_to_cover=percentage_to_cover,
+    )
+    return optimizer.run()
+
+
+def run_optimization(
+    area: str,
+    peak_day_only: bool,
+    budget: int,
+    open_priority_docks_first: bool = False,
+    percentage_to_cover: float = 100,
+    iterative: bool = False,
     increase_budget: bool = False,
+    increase_response_time: bool = False,
 ) -> dict[str, Any]:
-    _require_analyzed_area()
     _ensure_backend_cwd()
 
-    docks = session.active_docks
-    incidents = session.active_incidents
-    specific_docks = None
-    if use_specific_docks:
-        if not session.priority_dock_names:
-            raise ValueError("Upload a priority docks file before prioritizing priority docks.")
-        specific_docks = _priority_docks()
-        if not specific_docks:
-            raise ValueError("No priority docks found in the loaded docks dataset.")
+    docks, incidents, area_bounds = _resolve_area_context(area, peak_day_only)
+    session.area_mode = area
+    session.area_bounds = area_bounds
+    session.active_docks = docks
+    session.active_incidents = incidents
 
-    results = maximize_incidents_covered(
-        docks,
+    working_docks = clone_docks(docks)
+
+    priority_docks = None
+    if open_priority_docks_first:
+        if not session.priority_dock_names:
+            raise ValueError("Upload a priority docks file before opening priority docks first.")
+        priority_docks = _priority_docks(working_docks)
+        if not priority_docks:
+            raise ValueError("No priority docks found in the loaded docks dataset.")
+    current_budget = budget
+    current_response_time = RESPONSE_TIME
+
+    results = _run_single_optimization(
+        working_docks,
         incidents,
-        dock_locations_quantity,
-        specific_docks,
+        current_budget,
+        priority_docks,
+        percentage_to_cover,
     )
     if results is None:
         raise RuntimeError("Optimization did not produce a feasible result.")
 
-    if use_specific_docks:
-        map_name = f"priority_docks_optimized_map_{dock_locations_quantity}_docks"
-    else:
-        map_name = f"optimized_map_{dock_locations_quantity}_docks"
-    outputs = [_create_optimization_map(results, map_name)]
+    map_prefix = "priority_docks" if open_priority_docks_first else "optimized"
+    outputs = [
+        _create_optimization_map(
+            results,
+            incidents,
+            f"{map_prefix}_map_{current_budget}_docks",
+            area_bounds,
+        )
+    ]
     results_list = [results]
 
-    amount_incidents_covered = results["amount_incidents_covered"]
-    incidents_to_cover = len(incidents)
-    current_k = results["k"]
+    if iterative and not increase_budget and not increase_response_time:
+        raise ValueError("Enable at least one iterative option (budget or response time).")
 
-    if increase_budget and amount_incidents_covered < incidents_to_cover:
+    if iterative and (increase_budget or increase_response_time):
+        incidents_to_cover = len(incidents)
+        amount_incidents_covered = results["amount_incidents_covered"]
+
         while amount_incidents_covered < incidents_to_cover:
-            current_k += 1
-            next_results = maximize_incidents_covered(
-                docks,
+            if increase_response_time:
+                current_response_time += RESPONSE_TIME_STEP_HOURS
+                working_docks = clone_docks(docks, response_time=current_response_time)
+                if priority_docks is not None:
+                    priority_docks = _priority_docks(working_docks)
+            if increase_budget:
+                current_budget += 1
+
+            next_results = _run_single_optimization(
+                working_docks,
                 incidents,
-                current_k,
-                specific_docks,
+                current_budget,
+                priority_docks,
+                percentage_to_cover,
             )
             if next_results is None:
                 break
 
-            if use_specific_docks:
-                budget_map_name = f"priority_docks_increase_budget_{current_k}_docks"
-            else:
-                budget_map_name = f"increase_budget_{current_k}_docks"
-            outputs.append(_create_optimization_map(next_results, budget_map_name))
+            step_label = f"{map_prefix}_step_{current_budget}"
+            if increase_response_time:
+                response_minutes = round(current_response_time * 60)
+                step_label = f"{map_prefix}_rt{response_minutes}m_k{current_budget}"
+            outputs.append(
+                _create_optimization_map(
+                    next_results,
+                    incidents,
+                    step_label,
+                    area_bounds,
+                )
+            )
             results_list.append(next_results)
 
-            current_k = next_results["k"]
             if next_results["amount_incidents_covered"] == amount_incidents_covered:
                 break
+
             amount_incidents_covered = next_results["amount_incidents_covered"]
             results = next_results
 
-        chart_scenario = (
-            "priority_docks_increase_budget" if use_specific_docks else "increase_budget"
-        )
+        chart_scenario = map_prefix + ("_iterative" if iterative else "")
         chart_path = chart_incidents_covered_vs_k(results_list, scenario_name=chart_scenario)
         outputs.append(_relative_output_path(chart_path))
 
     return {
-        "scenario": "priority_docks" if use_specific_docks else "maximize_coverage",
-        "area": session.area_mode,
+        "scenario": "priority_docks" if open_priority_docks_first else "maximize_coverage",
+        "area": area,
+        "peak_day_only": peak_day_only,
+        "iterative": iterative,
         "increase_budget": increase_budget,
+        "increase_response_time": increase_response_time,
+        "incidents_analyzed": len(incidents),
         "result": _serialize_result(results),
-        "steps": [_serialize_result(r) for r in results_list],
+        "steps": [_serialize_result(step) for step in results_list],
         "outputs": outputs,
+        "map": outputs[0],
     }

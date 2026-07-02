@@ -8,6 +8,7 @@ from datetime import date
 # Drone speed and response time are constant values
 DRONE_SPEED = 35.8 # 35.8 miles/hour data from https://www.skydio.com/x10/technical-specs
 RESPONSE_TIME = 0.033 # 0.033 hours = 2 minutes target response time
+RESPONSE_TIME_STEP_HOURS = 1 / 60  # 1 minute per iterative increase step
 MAX_MISSION_TIME = 1800 # 1800 seconds = 30 minutes (https://www.skydio.com/x10/technical-specs gives 40 minutes in ideal conditions)
 BATTERY_RECHARGE_TIME = 3600 # 3600 seconds = 1 hour (https://www.skydio.com/x10/technical-specs using charger 230W)
 CYCLE_TIME = MAX_MISSION_TIME + BATTERY_RECHARGE_TIME # 1800 + 3600 = 5400 seconds = 90 minutes
@@ -48,6 +49,21 @@ class Dock:
         self.coverage_capacity = new_coverage_capacity
         return self.coverage_capacity
 
+def clone_docks(docks, response_time=None):
+    """Return a new list of Dock objects, optionally overriding response time."""
+    cloned = []
+    for dock in docks:
+        new_dock = Dock(dock.name, dock.latitude, dock.longitude)
+        if response_time is not None:
+            new_dock.change_response_time(response_time)
+        else:
+            new_dock.response_time = dock.response_time
+            new_dock.effective_radius = dock.effective_radius
+            new_dock.drone_speed = dock.drone_speed
+            new_dock.drone_coverage_capacity = dock.drone_coverage_capacity
+        cloned.append(new_dock)
+    return cloned
+
 class Incident:
     def __init__(self, incident_id, latitude, longitude, date):
         self.incident_id = incident_id
@@ -73,7 +89,7 @@ def coverage(dock, incident):
     return distance(dock, incident) <= dock.effective_radius
 
 # Returns the docks and incidents within a specific area around the specific docks
-def specific_area_docks_and_incidents(docks, incidents, priority_dock_names):
+def filter_priority_area(docks, incidents, priority_dock_names):
     EXTRA_DISTANCE_DEGREES = 0.014 # 0.014 degrees = 1 mile to get an area slightly larger than the effective radius
     priority_docks = []
     for dock in docks:
@@ -85,7 +101,6 @@ def specific_area_docks_and_incidents(docks, incidents, priority_dock_names):
     all_docks_longitudes = [d.longitude for d in priority_docks]
     effective_radius = max(d.effective_radius for d in priority_docks)
     effective_radius_degrees = effective_radius / 69 # miles to degrees
-    
 
     extra_distance = effective_radius_degrees + EXTRA_DISTANCE_DEGREES
     latitude_closest_to_ecuador = min(all_docks_latitudes) - extra_distance
@@ -93,19 +108,48 @@ def specific_area_docks_and_incidents(docks, incidents, priority_dock_names):
     longitude_closest_to_greenwich = min(all_docks_longitudes) - extra_distance
     longitude_farthest_from_greenwich = max(all_docks_longitudes) + extra_distance
 
-    priority_area_docks = [dock for dock in docks if dock.latitude >= latitude_closest_to_ecuador and dock.latitude <= latitude_farthest_from_ecuador and dock.longitude >= longitude_closest_to_greenwich and dock.longitude <= longitude_farthest_from_greenwich]
-    priority_area_incidents = [incident for incident in incidents if incident.latitude >= latitude_closest_to_ecuador and incident.latitude <= latitude_farthest_from_ecuador and incident.longitude >= longitude_closest_to_greenwich and incident.longitude <= longitude_farthest_from_greenwich] # From all incidents, get only the ones within the specific area
-    priority_area_incidents_by_date = get_incidents_by_date(priority_area_incidents) # Get the incidents in one day for the specific area
+    priority_area_docks = [
+        dock
+        for dock in docks
+        if dock.latitude >= latitude_closest_to_ecuador
+        and dock.latitude <= latitude_farthest_from_ecuador
+        and dock.longitude >= longitude_closest_to_greenwich
+        and dock.longitude <= longitude_farthest_from_greenwich
+    ]
+    priority_area_incidents = [
+        incident
+        for incident in incidents
+        if incident.latitude >= latitude_closest_to_ecuador
+        and incident.latitude <= latitude_farthest_from_ecuador
+        and incident.longitude >= longitude_closest_to_greenwich
+        and incident.longitude <= longitude_farthest_from_greenwich
+    ]
+    bounds = {
+        "latitude_closest_to_ecuador": latitude_closest_to_ecuador,
+        "latitude_farthest_from_ecuador": latitude_farthest_from_ecuador,
+        "longitude_closest_to_greenwich": longitude_closest_to_greenwich,
+        "longitude_farthest_from_greenwich": longitude_farthest_from_greenwich,
+    }
+    return priority_area_docks, priority_area_incidents, bounds
+
+
+def specific_area_docks_and_incidents(docks, incidents, priority_dock_names):
+    priority_area_docks, priority_area_incidents, bounds = filter_priority_area(
+        docks,
+        incidents,
+        priority_dock_names,
+    )
+    priority_area_incidents_by_date = peak_day_incidents(priority_area_incidents)
     print(f"Priority area docks: {len(priority_area_docks)}")
     print(f"Priority area incidents: {len(priority_area_incidents_by_date)}")
 
     return (
         priority_area_docks,
         priority_area_incidents_by_date,
-        latitude_closest_to_ecuador,
-        latitude_farthest_from_ecuador,
-        longitude_closest_to_greenwich,
-        longitude_farthest_from_greenwich,
+        bounds["latitude_closest_to_ecuador"],
+        bounds["latitude_farthest_from_ecuador"],
+        bounds["longitude_closest_to_greenwich"],
+        bounds["longitude_farthest_from_greenwich"],
     )
 
 # Create docks and incidents objects from data
@@ -143,6 +187,19 @@ def _incident_date(incident):
     if hasattr(value, "date"):
         return value.date()
     return pd.to_datetime(value).date()
+
+def peak_day_incidents(incidents):
+    """Return incidents that occurred on the busiest day within the given list."""
+    if not incidents:
+        return []
+
+    incidents_by_date = defaultdict(list)
+    for incident in incidents:
+        incidents_by_date[_incident_date(incident)].append(incident)
+
+    busiest_date = max(incidents_by_date, key=lambda day: len(incidents_by_date[day]))
+    return incidents_by_date[busiest_date]
+
 
 def get_incidents_by_date(incidents):
     """Group incidents by month and representative days (max, mean, min daily counts).
@@ -206,10 +263,11 @@ def get_incidents_by_date(incidents):
         }
     
     # Day with the maximum number of incidents in the entire timeframe of the dataset
-    date_incidents_in_one_day = max(incidents_by_date, key=lambda d: len(incidents_by_date[d]))
-    incidents_in_one_day = incidents_by_date[date_incidents_in_one_day]
-    print(f"Maximum number of incidents in one day: {len(incidents_in_one_day)}")
-    print(f"Date maximum number of incidents: {date_incidents_in_one_day}")
+    incidents_in_one_day = peak_day_incidents(incidents)
+    if incidents_in_one_day:
+        busiest_date = _incident_date(incidents_in_one_day[0])
+        print(f"Maximum number of incidents in one day: {len(incidents_in_one_day)}")
+        print(f"Date maximum number of incidents: {busiest_date}")
 
     return incidents_in_one_day
 

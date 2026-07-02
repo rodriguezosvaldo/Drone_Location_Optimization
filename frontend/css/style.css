@@ -105,6 +105,8 @@ body {
 
 .sidebar-panel.active {
   display: flex;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .status-card {
@@ -385,6 +387,162 @@ input[type="number"] {
 
 .advanced-card {
   flex-shrink: 0;
+}
+
+.optimization-card {
+  flex-shrink: 0;
+}
+
+.section-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.55rem;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  min-width: 0;
+}
+
+.toggle-row.compact {
+  margin-bottom: 0.4rem;
+}
+
+.toggle-label {
+  flex: 1;
+  font-size: 0.76rem;
+  color: var(--text);
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #4b5563;
+  border-radius: 20px;
+  transition: 0.2s ease;
+}
+
+.toggle-slider::before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: 0.2s ease;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--success);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(16px);
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.param-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  min-width: 0;
+}
+
+.param-label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  flex: 1;
+  min-width: 0;
+}
+
+.param-input {
+  width: 4.5rem;
+  flex-shrink: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.optimization-results {
+  margin-top: 0.6rem;
+  padding: 0.55rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.optimization-results strong {
+  display: block;
+  font-size: 0.78rem;
+  margin-bottom: 0.25rem;
+}
+
+.optimization-results .step-item {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.iterative-section {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.iterative-section .btn {
+  margin-top: 0.45rem;
+}
+
+.optimization-refresh-btn {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.toggle-row.disabled {
+  opacity: 0.45;
+}
+
+.toggle-row.disabled .toggle-slider {
+  cursor: not-allowed;
 }
 
 .advanced-card summary {
