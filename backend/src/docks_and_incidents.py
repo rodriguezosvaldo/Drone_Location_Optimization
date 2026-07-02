@@ -14,7 +14,6 @@ CYCLE_TIME = MAX_MISSION_TIME + BATTERY_RECHARGE_TIME # 1800 + 3600 = 5400 secon
 DRONE_DISPOSITION_TIME = 57600 # 57600 seconds = 16 hours (Two shifts of 8 hours each)
 DRONE_COVERAGE_CAPACITY = int(DRONE_DISPOSITION_TIME / CYCLE_TIME) # 57600 / 5400 = 10.66 = 10 incidents per day
 
-
 class Dock:
     def __init__(self, name, latitude, longitude):
         self.name = name
