@@ -8,6 +8,16 @@ import math
 _TIME_LIMIT_SECONDS = 300 # 300 seconds = 5 minutes time limit for the solver
 PERCENTAGE_INCIDENTS_COVERED = 1 # 100% of incidents must be covered
 
+class Optimization:
+    def __init__(self):
+        self.model = gp.Model("optimization")
+        self.model.Params.TimeLimit = _TIME_LIMIT_SECONDS
+        self.model.Params.MIPGap = 0.01
+        self.model.Params.MIPFocus = 2
+        self.model.Params.Cuts = 0
+        self.model.Params.Presolve = 0
+        self.model.Params.PreCrush = 0
+
 def _precompute_coverage(docks, incidents):
     incident_to_docks = {} # List of docks that cover the incident
     for i in incidents:
@@ -156,56 +166,3 @@ def maximize_incidents_covered(docks, incidents, dock_locations_quantity, specif
 
     return results
 
-
-
-
-
-
-
-def minimize_docks_used(docks, incidents):
-    model = gp.Model("minimize_docks_used")
-    model.Params.TimeLimit = _TIME_LIMIT_SECONDS
-    incident_to_docks, dock_to_incidents = _precompute_coverage(docks, incidents)
-    assignable_pairs = [(d, i) for i in incidents for d in incident_to_docks[i]]
-
-    x = model.addVars(docks, vtype=gp.GRB.BINARY, name="x") # Binary variable indicating if a dock is open
-    y = model.addVars(assignable_pairs, vtype=gp.GRB.BINARY, name="y") # Binary variable indicating if an incident is covered by a dock
-
-    for i in incidents:
-        model.addConstr(gp.quicksum(y[d, i] for d in incident_to_docks[i]) >= 1) # Each incident must be covered by at least one dock
-
-    for d in docks:
-        coverable_incidents = dock_to_incidents[d]
-        if coverable_incidents:
-            model.addConstr(
-                gp.quicksum(y[d, i] for i in coverable_incidents)
-                <= d.drone_coverage_capacity * x[d]
-            ) # The number of incidents covered by a dock must be less than or equal to the maximum number of incidents a dock can cover
-    
-    model.setObjective(gp.quicksum(x[d] for d in docks), gp.GRB.MINIMIZE) # Minimize the number of docks used
-    model.optimize()
-    if model.Status not in (gp.GRB.OPTIMAL, gp.GRB.TIME_LIMIT, gp.GRB.SUBOPTIMAL):
-        print(f"Dock minimization ended with status {model.Status}")
-        return
-
-    selected_docks = [d for d in docks if x[d].X > 0.5]
-    covered_incidents = [i for i in incidents if any(y[d, i].X > 0.5 for d in incident_to_docks[i])]
-    dock_assignments = {
-        d: [i for i in dock_to_incidents[d] if y[d, i].X > 0.5]
-        for d in selected_docks
-    }
-    print(f"Selected docks amount: {len(selected_docks)}")
-    print(f"Covered incidents amount: {len(covered_incidents)}")
-
-    # Visualize map
-
-    create_map(
-        selected_docks,
-        incidents,
-        "minimized_docks_used_map",
-        covered_incidents,
-        dock_assignments,
-    )
-    map_file = Path(__file__).resolve().parent.parent.parent / "output" / "minimized_docks_used_map.html"
-    if map_file.exists():
-        webbrowser.open(map_file.resolve().as_uri())
