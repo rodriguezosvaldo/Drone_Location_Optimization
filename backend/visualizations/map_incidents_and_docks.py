@@ -17,6 +17,48 @@ def _dock_colors(dock, priority_dock_names):
         return PRIORITY_DOCK_BORDER_COLOR, PRIORITY_DOCK_FILL_COLOR
     return DOCK_COLOR, DOCK_COLOR
 
+def _dock_popup(dock, covered_incidents):
+    return folium.Popup(
+        html=f"""
+        <div style="padding-x:2px; white-space: nowrap;">
+            <b>{dock.name}</b><br>
+            Effective Radius: {dock.effective_radius:.2f} miles<br>
+            Covered Incidents: {len(covered_incidents)}
+        </div>
+        """,
+        max_width=200,
+    )
+
+def _add_dock_center_marker(map, dock, border_color, fill_color, is_priority, covered_incidents):
+    popup = _dock_popup(dock, covered_incidents)
+    if is_priority:
+        folium.Marker(
+            location=[dock.latitude, dock.longitude],
+            icon=folium.DivIcon(
+                html=f"""
+                <div style="text-align: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+                        <path d="M12 3L2 12h3v8h14v-8h3L12 3z"
+                              fill="{fill_color}" stroke="{border_color}" stroke-width="1.5"/>
+                    </svg>
+                </div>
+                """,
+                icon_size=(18, 18),
+                icon_anchor=(9, 9),
+            ),
+            popup=popup,
+        ).add_to(map)
+    else:
+        folium.CircleMarker(
+            location=[dock.latitude, dock.longitude],
+            radius=3,
+            color=border_color,
+            fill=True,
+            fill_color=border_color,
+            fill_opacity=1,
+            popup=popup,
+        ).add_to(map)
+
 def _add_incident_marker(map, incident, color):
     folium.CircleMarker(
         location=[incident.latitude, incident.longitude],
@@ -144,6 +186,7 @@ def create_map(
                 covered_incidents = dock_assignments.get(dock, [])
             else:
                 covered_incidents, _ = dock.incidents_covered(incidents_covered)
+            is_priority = dock.name in priority_dock_names
             border_color, fill_color = _dock_colors(dock, priority_dock_names)
             folium.Circle(
                 location=[dock.latitude, dock.longitude],
@@ -155,24 +198,9 @@ def create_map(
                 fill_opacity=0.10,
             ).add_to(map)
 
-            folium.CircleMarker(
-                location=[dock.latitude, dock.longitude],
-                radius=3,
-                color=border_color,
-                fill=True,
-                fill_color=border_color,
-                fill_opacity=1,
-                popup=folium.Popup(
-                    html=f"""
-                    <div style="padding-x:2px; white-space: nowrap;">
-                        <b>{dock.name}</b><br>
-                        Effective Radius: {dock.effective_radius:.2f} miles<br>
-                        Covered Incidents: {len(covered_incidents)}
-                    </div>
-                    """,
-                    max_width=200,
-                ),
-            ).add_to(map)
+            _add_dock_center_marker(
+                map, dock, border_color, fill_color, is_priority, covered_incidents
+            )
 
         legend_html = f"""
         <div style="
@@ -198,7 +226,13 @@ def create_map(
             </div>
             <div>
                 <span style="color:{DOCK_COLOR};">&#9679;</span> Dock
-                <span style="margin-left: 10px; color:{PRIORITY_DOCK_BORDER_COLOR};">&#9679;</span> Priority dock
+                <span style="margin-left: 10px; display: inline-flex; align-items: center; gap: 4px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" style="vertical-align: middle;">
+                        <path d="M12 3L2 12h3v8h14v-8h3L12 3z"
+                              fill="{PRIORITY_DOCK_FILL_COLOR}" stroke="{PRIORITY_DOCK_BORDER_COLOR}" stroke-width="1.5"/>
+                    </svg>
+                    Priority dock
+                </span>
             </div>
         </div>
         """
