@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body>
   <div class="app">
@@ -125,9 +125,39 @@
             Maximum number of docks that may be opened.
           </div>
 
-          <div class="param-row">
-            <label class="param-label" for="optimize-percentage">Percentage to cover</label>
-            <input type="number" id="optimize-percentage" class="param-input" min="1" max="100" value="100">
+          <div class="percentage-block">
+            <span class="param-label percentage-title">Percentage to cover</span>
+
+            <div class="radio-group inline" role="radiogroup" aria-label="Percentage mode">
+              <label class="radio-option compact">
+                <input type="radio" name="percentage-mode" value="single" id="percentage-mode-single" checked>
+                <span>Single</span>
+              </label>
+              <label class="radio-option compact">
+                <input type="radio" name="percentage-mode" value="range" id="percentage-mode-range">
+                <span>Range</span>
+              </label>
+            </div>
+
+            <div class="param-row" id="percentage-single-panel">
+              <label class="param-label" for="optimize-percentage">Value</label>
+              <input type="number" id="optimize-percentage" class="param-input" min="1" max="100" value="100">
+            </div>
+
+            <div class="percentage-range-panel" id="percentage-range-panel">
+              <div class="param-row">
+                <label class="param-label" for="pct-range-start">From</label>
+                <input type="number" id="pct-range-start" class="param-input" min="1" max="100" value="10">
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="pct-range-end">To</label>
+                <input type="number" id="pct-range-end" class="param-input" min="1" max="100" value="100">
+              </div>
+              <div class="param-row">
+                <label class="param-label" for="pct-range-step">Increment</label>
+                <input type="number" id="pct-range-step" class="param-input" min="1" max="100" value="10">
+              </div>
+            </div>
           </div>
 
           <button class="btn outline full-width" id="run-optimize-btn">Run</button>
@@ -185,6 +215,6 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="js/app.js?v=11"></script>
+  <script src="js/app.js?v=12"></script>
 </body>
 </html>

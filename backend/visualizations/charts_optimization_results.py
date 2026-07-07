@@ -72,3 +72,50 @@ def chart_incidents_covered_vs_k(
     else:
         plt.close(fig)
     return save_path
+
+
+def chart_incidents_covered_vs_percentage(
+    results: list[dict],
+    *,
+    scenario_name: str,
+    output_path: Path | None = None,
+    show: bool = False,
+) -> Path:
+    """Line chart: target coverage percentage (x) vs incidents covered (y)."""
+    if not results:
+        raise ValueError("results must contain at least one optimization run.")
+
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = output_path or FIGURES_DIR / f"optimization_incidents_covered_{scenario_name}.png"
+
+    percentages = [r["target_percentage"] for r in results]
+    covered = [_covered_count(r) for r in results]
+
+    fig, ax = plt.subplots(figsize=FIG_SIZE)
+    ax.plot(percentages, covered, marker="o", color=LINE_COLOR, linewidth=2, markersize=8)
+    ax.set_xlabel("Target percentage to cover")
+    ax.set_ylabel("Incidents covered")
+    ax.set_title(
+        f"Incidents Covered vs Target Percentage — {SCENARIO_LABELS.get(scenario_name, scenario_name)}"
+    )
+    ax.grid(True, alpha=0.3)
+
+    for r, count in zip(results, covered):
+        pct = r["coverage_rate"] * 100
+        label = f"{count:,}\n({pct:.1f}%)"
+        ax.annotate(
+            label,
+            (r["target_percentage"], count),
+            textcoords="offset points",
+            xytext=(0, 10),
+            ha="center",
+            fontsize=8,
+        )
+
+    plt.tight_layout()
+    fig.savefig(save_path, dpi=150, bbox_inches="tight", facecolor="white")
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+    return save_path

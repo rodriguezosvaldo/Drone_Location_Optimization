@@ -1,5 +1,7 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.services import optimization_service
 from app.services.jobs import job_manager
@@ -18,11 +20,33 @@ class OptimizeRequest(BaseModel):
         False,
         description="Prioritize opening docks from the priority docks file",
     )
-    percentage_to_cover: float = Field(
-        100,
+    percentage_mode: Literal["single", "range"] = Field(
+        "single",
+        description="Use one percentage target or run a range of scenarios",
+    )
+    percentage_to_cover: float | None = Field(
+        None,
         ge=1,
         le=100,
-        description="Maximum percentage of incidents that may be covered",
+        description="Maximum percentage of incidents that may be covered (single mode)",
+    )
+    percentage_range_start: float | None = Field(
+        None,
+        ge=1,
+        le=100,
+        description="First percentage target in range mode",
+    )
+    percentage_range_end: float | None = Field(
+        None,
+        ge=1,
+        le=100,
+        description="Last percentage target in range mode",
+    )
+    percentage_range_step: float | None = Field(
+        None,
+        ge=1,
+        le=100,
+        description="Increment between percentage targets in range mode",
     )
     iterative: bool = Field(
         False,
@@ -37,36 +61,77 @@ class OptimizeRequest(BaseModel):
         description="Increase drone response time on each iterative step",
     )
 
+    @model_validator(mode="after")
+    def validate_percentage_options(self):
+        if self.percentage_mode == "single":
+            if self.percentage_to_cover is None:
+                self.percentage_to_cover = 100
+            if self.iterative and not self.increase_budget and not self.increase_response_time:
+                raise ValueError("Enable at least one iterative option (budget or response time).")
+            return self
+
+        if self.iterative:
+            raise ValueError("Iterative budget/response-time options are not available in range mode.")
+
+        missing = [
+            name
+            for name, value in (
+                ("percentage_range_start", self.percentage_range_start),
+                ("percentage_range_end", self.percentage_range_end),
+                ("percentage_range_step", self.percentage_range_step),
+            )
+            if value is None
+        ]
+        if missing:
+            raise ValueError(f"Missing required range fields: {', '.join(missing)}.")
+
+        if self.percentage_range_start > self.percentage_range_end:
+            raise ValueError("percentage_range_start must be less than or equal to percentage_range_end.")
+
+        values = optimization_service.build_percentage_range_values(
+            self.percentage_range_start,
+            self.percentage_range_end,
+            self.percentage_range_step,
+        )
+        if len(values) < 2:
+            raise ValueError("Percentage range must produce at least two scenarios.")
+        return self
+
+
+def _run_kwargs(payload: OptimizeRequest) -> dict:
+    return {
+        "area": payload.area,
+        "peak_day_only": payload.peak_day_only,
+        "budget": payload.budget,
+        "open_priority_docks_first": payload.open_priority_docks_first,
+        "percentage_mode": payload.percentage_mode,
+        "percentage_to_cover": payload.percentage_to_cover or 100,
+        "percentage_range_start": payload.percentage_range_start,
+        "percentage_range_end": payload.percentage_range_end,
+        "percentage_range_step": payload.percentage_range_step,
+        "iterative": payload.iterative,
+        "increase_budget": payload.increase_budget,
+        "increase_response_time": payload.increase_response_time,
+    }
+
 
 @router.post("/run")
 def optimize_run(payload: OptimizeRequest):
     try:
-        if payload.iterative:
+        kwargs = _run_kwargs(payload)
+        if payload.iterative or payload.percentage_mode == "range":
             job_id = job_manager.create(
                 "maximize_incidents_covered",
-                lambda: optimization_service.run_optimization(
-                    area=payload.area,
-                    peak_day_only=payload.peak_day_only,
-                    budget=payload.budget,
-                    open_priority_docks_first=payload.open_priority_docks_first,
-                    percentage_to_cover=payload.percentage_to_cover,
-                    iterative=True,
-                    increase_budget=payload.increase_budget,
-                    increase_response_time=payload.increase_response_time,
-                ),
+                lambda: optimization_service.run_optimization(**kwargs),
             )
-            return {"job_id": job_id, "message": "Optimization started."}
+            message = (
+                "Percentage range optimization started."
+                if payload.percentage_mode == "range"
+                else "Optimization started."
+            )
+            return {"job_id": job_id, "message": message}
 
-        return optimization_service.run_optimization(
-            area=payload.area,
-            peak_day_only=payload.peak_day_only,
-            budget=payload.budget,
-            open_priority_docks_first=payload.open_priority_docks_first,
-            percentage_to_cover=payload.percentage_to_cover,
-            iterative=False,
-            increase_budget=False,
-            increase_response_time=False,
-        )
+        return optimization_service.run_optimization(**kwargs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

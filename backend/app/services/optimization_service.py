@@ -15,7 +15,10 @@ from src.docks_and_incidents import (
     peak_day_incidents,
 )
 from src.optimization_model import MaximizeIncidentsCovered
-from visualizations.charts_optimization_results import chart_incidents_covered_vs_k
+from visualizations.charts_optimization_results import (
+    chart_incidents_covered_vs_k,
+    chart_incidents_covered_vs_percentage,
+)
 from visualizations.map_incidents_and_docks import create_map
 
 
@@ -34,7 +37,7 @@ def _priority_docks(docks: list[Any]) -> list[Any]:
     return [dock for dock in docks if dock.name in session.priority_dock_names]
 
 
-def _serialize_result(result: dict) -> dict:
+def _serialize_result(result: dict, *, target_percentage: float | None = None) -> dict:
     total = result.get("amount_incidents_covered", 0)
     coverage_rate = result.get("coverage_rate", 0)
     payload = {
@@ -44,9 +47,20 @@ def _serialize_result(result: dict) -> dict:
         "amount_selected_docks": result["amount_selected_docks"],
         "selected_docks": [d.name for d in result["selected_docks"]],
     }
+    if target_percentage is not None:
+        payload["target_percentage"] = target_percentage
     if result.get("response_time") is not None:
         payload["response_time_minutes"] = round(result["response_time"] * 60, 2)
     return payload
+
+
+def build_percentage_range_values(start: float, end: float, step: float) -> list[float]:
+    values: list[float] = []
+    current = start
+    while current <= end + 1e-9:
+        values.append(round(current, 6))
+        current += step
+    return values
 
 
 def _relative_output_path(path: Path) -> str:
@@ -294,7 +308,11 @@ def run_optimization(
     peak_day_only: bool,
     budget: int,
     open_priority_docks_first: bool = False,
+    percentage_mode: str = "single",
     percentage_to_cover: float = 100,
+    percentage_range_start: float | None = None,
+    percentage_range_end: float | None = None,
+    percentage_range_step: float | None = None,
     iterative: bool = False,
     increase_budget: bool = False,
     increase_response_time: bool = False,
@@ -316,6 +334,76 @@ def run_optimization(
         priority_docks = _priority_docks(working_docks)
         if not priority_docks:
             raise ValueError("No priority docks found in the loaded docks dataset.")
+
+    map_prefix = "priority_docks" if open_priority_docks_first else "optimized"
+
+    if percentage_mode == "range":
+        if percentage_range_start is None or percentage_range_end is None or percentage_range_step is None:
+            raise ValueError("Percentage range start, end, and step are required.")
+        if iterative:
+            raise ValueError("Iterative budget/response-time options are not available in range mode.")
+
+        percentages = build_percentage_range_values(
+            percentage_range_start,
+            percentage_range_end,
+            percentage_range_step,
+        )
+        results_list: list[dict] = []
+        outputs: list[str] = []
+
+        for target_percentage in percentages:
+            step_results = _run_single_optimization(
+                working_docks,
+                incidents,
+                budget,
+                priority_docks,
+                target_percentage,
+            )
+            if step_results is None:
+                raise RuntimeError(
+                    f"Optimization did not produce a feasible result for {target_percentage:g}%."
+                )
+
+            pct_label = str(int(target_percentage)) if float(target_percentage).is_integer() else str(target_percentage)
+            outputs.append(
+                _create_optimization_map(
+                    step_results,
+                    incidents,
+                    f"{map_prefix}_pct{pct_label}",
+                    area_bounds,
+                )
+            )
+            step_results = {**step_results, "target_percentage": target_percentage}
+            results_list.append(step_results)
+
+        chart_path = chart_incidents_covered_vs_percentage(
+            results_list,
+            scenario_name=f"{map_prefix}_range",
+        )
+        outputs.append(_relative_output_path(chart_path))
+
+        results = results_list[-1]
+        return {
+            "scenario": "priority_docks" if open_priority_docks_first else "maximize_coverage",
+            "area": area,
+            "peak_day_only": peak_day_only,
+            "percentage_mode": "range",
+            "percentage_range_start": percentage_range_start,
+            "percentage_range_end": percentage_range_end,
+            "percentage_range_step": percentage_range_step,
+            "iterative": False,
+            "increase_budget": False,
+            "increase_response_time": False,
+            "incidents_analyzed": len(incidents),
+            "result": _serialize_result(results, target_percentage=results["target_percentage"]),
+            "steps": [
+                _serialize_result(step, target_percentage=step["target_percentage"])
+                for step in results_list
+            ],
+            "outputs": outputs,
+            "map": outputs[-2],
+        }
+
     current_budget = budget
     current_response_time = RESPONSE_TIME
 
@@ -329,7 +417,6 @@ def run_optimization(
     if results is None:
         raise RuntimeError("Optimization did not produce a feasible result.")
 
-    map_prefix = "priority_docks" if open_priority_docks_first else "optimized"
     outputs = [
         _create_optimization_map(
             results,
@@ -394,6 +481,8 @@ def run_optimization(
         "scenario": "priority_docks" if open_priority_docks_first else "maximize_coverage",
         "area": area,
         "peak_day_only": peak_day_only,
+        "percentage_mode": "single",
+        "percentage_to_cover": percentage_to_cover,
         "iterative": iterative,
         "increase_budget": increase_budget,
         "increase_response_time": increase_response_time,

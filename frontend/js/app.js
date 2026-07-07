@@ -73,6 +73,31 @@ function selectedArea() {
   return document.querySelector('input[name="area-mode"]:checked')?.value;
 }
 
+function selectedPercentageMode() {
+  return document.querySelector('input[name="percentage-mode"]:checked')?.value || "single";
+}
+
+function isPercentageRangeMode() {
+  return selectedPercentageMode() === "range";
+}
+
+function updatePercentageModePanels() {
+  const rangeMode = isPercentageRangeMode();
+  if (rangeMode) {
+    $("iterative-section").classList.add("hidden");
+  }
+}
+
+function buildPercentageRangeValues(start, end, step) {
+  const values = [];
+  let current = start;
+  while (current <= end + 1e-9) {
+    values.push(Math.round(current * 1000) / 1000);
+    current += step;
+  }
+  return values;
+}
+
 function updatePriorityAreaOption(status) {
   const priorityRadio = $("area-priority");
   const priorityLabel = priorityRadio.closest(".radio-option");
@@ -170,7 +195,12 @@ function resetOptimizationPanel() {
   $("peak-day-toggle").checked = false;
   $("priority-docks-first-toggle").checked = false;
   $("optimize-budget").value = 4;
+  $("percentage-mode-single").checked = true;
   $("optimize-percentage").value = 100;
+  $("pct-range-start").value = 10;
+  $("pct-range-end").value = 100;
+  $("pct-range-step").value = 10;
+  updatePercentageModePanels();
   $("increase-response-time-toggle").checked = false;
   $("increase-budget-toggle").checked = false;
 
@@ -196,45 +226,73 @@ function renderOptimizationResults(data) {
   const container = $("optimization-results");
   const result = data.result;
   const steps = data.steps || [result];
+  const rangeMode = data.percentage_mode === "range";
 
-  let html = `
-    <strong>Results</strong>
-    <div>Covered: ${result.amount_incidents_covered} incidents (${result.coverage_rate}%)</div>
-    <div>Docks used: ${result.amount_selected_docks} / budget ${result.k}</div>
-  `;
+  let html = `<strong>Results</strong>`;
 
-  if (result.response_time_minutes != null) {
-    html += `<div>Response time: ${result.response_time_minutes} min</div>`;
-  }
-
-  if (steps.length > 1) {
-    html += `<div class="step-item">${steps.length} optimization steps completed.</div>`;
+  if (rangeMode) {
+    html += `<div>${steps.length} scenarios (${data.percentage_range_start}–${data.percentage_range_end}, step ${data.percentage_range_step})</div>`;
     steps.forEach((step, index) => {
+      const targetPct = step.target_percentage ?? step.percentage_to_cover;
       html += `
         <div class="step-item">
-          Step ${index + 1}: ${step.amount_incidents_covered} covered · k=${step.k}
-          ${step.response_time_minutes != null ? ` · ${step.response_time_minutes} min` : ""}
+          ${targetPct}%: ${step.amount_incidents_covered} covered (${step.coverage_rate}%) · k=${step.k}
         </div>
       `;
     });
+  } else {
+    html += `
+      <div>Covered: ${result.amount_incidents_covered} incidents (${result.coverage_rate}%)</div>
+      <div>Docks used: ${result.amount_selected_docks} / budget ${result.k}</div>
+    `;
+
+    if (result.response_time_minutes != null) {
+      html += `<div>Response time: ${result.response_time_minutes} min</div>`;
+    }
+
+    if (steps.length > 1) {
+      html += `<div class="step-item">${steps.length} optimization steps completed.</div>`;
+      steps.forEach((step, index) => {
+        html += `
+          <div class="step-item">
+            Step ${index + 1}: ${step.amount_incidents_covered} covered · k=${step.k}
+            ${step.response_time_minutes != null ? ` · ${step.response_time_minutes} min` : ""}
+          </div>
+        `;
+      });
+    }
   }
 
   container.innerHTML = html;
   container.classList.remove("hidden");
-  $("iterative-section").classList.remove("hidden");
+
+  if (!rangeMode) {
+    $("iterative-section").classList.remove("hidden");
+  }
 }
 
 function buildOptimizePayload(iterative) {
-  return {
+  const rangeMode = isPercentageRangeMode();
+  const payload = {
     area: selectedArea(),
     peak_day_only: $("peak-day-toggle").checked,
     budget: Number($("optimize-budget").value),
     open_priority_docks_first: $("priority-docks-first-toggle").checked,
-    percentage_to_cover: Number($("optimize-percentage").value),
-    iterative,
-    increase_budget: iterative && $("increase-budget-toggle").checked,
-    increase_response_time: iterative && $("increase-response-time-toggle").checked,
+    percentage_mode: selectedPercentageMode(),
+    iterative: iterative && !rangeMode,
+    increase_budget: iterative && !rangeMode && $("increase-budget-toggle").checked,
+    increase_response_time: iterative && !rangeMode && $("increase-response-time-toggle").checked,
   };
+
+  if (rangeMode) {
+    payload.percentage_range_start = Number($("pct-range-start").value);
+    payload.percentage_range_end = Number($("pct-range-end").value);
+    payload.percentage_range_step = Number($("pct-range-step").value);
+  } else {
+    payload.percentage_to_cover = Number($("optimize-percentage").value);
+  }
+
+  return payload;
 }
 
 function validateOptimizePayload(payload, iterative) {
@@ -246,6 +304,29 @@ function validateOptimizePayload(payload, iterative) {
     showToast("Budget must be at least 1.", "error");
     return false;
   }
+
+  if (payload.percentage_mode === "range") {
+    const { percentage_range_start: start, percentage_range_end: end, percentage_range_step: step } = payload;
+    if (
+      !Number.isFinite(start) || start < 1 || start > 100
+      || !Number.isFinite(end) || end < 1 || end > 100
+      || !Number.isFinite(step) || step < 1 || step > 100
+    ) {
+      showToast("Percentage range values must be between 1 and 100.", "error");
+      return false;
+    }
+    if (start > end) {
+      showToast("Range start must be less than or equal to end.", "error");
+      return false;
+    }
+    const values = buildPercentageRangeValues(start, end, step);
+    if (values.length < 2) {
+      showToast("Range must produce at least two scenarios.", "error");
+      return false;
+    }
+    return true;
+  }
+
   if (
     !Number.isFinite(payload.percentage_to_cover)
     || payload.percentage_to_cover < 1
@@ -332,10 +413,13 @@ async function generateMap() {
   }
 }
 
-function startJobPolling(jobId) {
+function startJobPolling(jobId, scenarioCount = 1) {
   const statusEl = $("job-status");
   statusEl.classList.remove("hidden");
-  $("job-status-text").textContent = "Running optimization… this may take several minutes.";
+  const scenarioText = scenarioCount > 1
+    ? `Running ${scenarioCount} scenarios… this may take several minutes.`
+    : "Running optimization… this may take several minutes.";
+  $("job-status-text").textContent = scenarioText;
 
   if (activeJobPoll) clearInterval(activeJobPoll);
 
@@ -388,7 +472,14 @@ async function runOptimization(iterative = false) {
 
     if (result.job_id) {
       showToast(result.message);
-      startJobPolling(result.job_id);
+      const scenarioCount = payload.percentage_mode === "range"
+        ? buildPercentageRangeValues(
+          payload.percentage_range_start,
+          payload.percentage_range_end,
+          payload.percentage_range_step,
+        ).length
+        : 1;
+      startJobPolling(result.job_id, scenarioCount);
       return;
     }
 
@@ -511,6 +602,10 @@ function bindEvents() {
   $("run-iterative-btn").addEventListener("click", () => runOptimization(true));
   $("delete-all-outputs-btn").addEventListener("click", deleteAllOutputs);
   $("optimization-refresh-btn").addEventListener("click", resetOptimizationPanel);
+  document.querySelectorAll('input[name="percentage-mode"]').forEach((input) => {
+    input.addEventListener("change", updatePercentageModePanels);
+    input.addEventListener("click", updatePercentageModePanels);
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -520,5 +615,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupFileDrop("priority-drop", "priority-file", "priority-file-name");
   setupTooltips();
   bindEvents();
+  updatePercentageModePanels();
   refreshStatus();
 });

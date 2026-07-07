@@ -298,6 +298,12 @@ body {
   margin-bottom: 0.65rem;
 }
 
+.radio-group.inline {
+  flex-direction: row;
+  gap: 0.85rem;
+  margin-bottom: 0.45rem;
+}
+
 .radio-option {
   display: flex;
   align-items: center;
@@ -307,11 +313,17 @@ body {
   color: var(--text);
 }
 
+.radio-option.compact {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
 .radio-option input[type="radio"] {
   accent-color: var(--success);
   width: 15px;
   height: 15px;
   flex-shrink: 0;
+  margin: 0;
 }
 
 .radio-option.disabled {
@@ -497,6 +509,35 @@ input[type="number"] {
   font: inherit;
   font-size: 0.8rem;
   text-align: center;
+}
+
+.percentage-block {
+  margin-bottom: 0.5rem;
+}
+
+.percentage-title {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.percentage-block .radio-group.inline {
+  margin-bottom: 0.4rem;
+}
+
+.percentage-range-panel {
+  display: none;
+}
+
+.percentage-block:has(#percentage-mode-range:checked) #percentage-single-panel {
+  display: none;
+}
+
+.percentage-block:has(#percentage-mode-range:checked) #percentage-range-panel {
+  display: block;
+}
+
+.percentage-range-panel .param-row:last-child {
+  margin-bottom: 0;
 }
 
 .optimization-results {
