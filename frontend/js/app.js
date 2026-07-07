@@ -222,21 +222,51 @@ const TRASH_ICON = `
   </svg>
 `;
 
+function stepMapButton(mapPath) {
+  if (!mapPath) return "";
+  const normalized = mapPath.replace(/^\//, "");
+  return `<button type="button" class="btn ghost small step-map-btn" data-map="${normalized}">Map</button>`;
+}
+
+function bindStepMapButtons(container) {
+  container.querySelectorAll(".step-map-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      showMap(btn.dataset.map);
+    });
+  });
+}
+
 function renderOptimizationResults(data) {
   const container = $("optimization-results");
   const result = data.result;
   const steps = data.steps || [result];
   const rangeMode = data.percentage_mode === "range";
+  const mapOutputs = (data.outputs || []).filter((path) => path.endsWith(".html"));
+  const primaryMap = data.map || mapOutputs[0];
 
   let html = `<strong>Results</strong>`;
 
-  if (rangeMode) {
+    if (rangeMode) {
     html += `<div>${steps.length} scenarios (${data.percentage_range_start}–${data.percentage_range_end}, step ${data.percentage_range_step})</div>`;
     steps.forEach((step, index) => {
       const targetPct = step.target_percentage ?? step.percentage_to_cover;
+      const mapPath = step.map || mapOutputs[index];
       html += `
         <div class="step-item">
-          ${targetPct}%: ${step.amount_incidents_covered} covered (${step.coverage_rate}%) · k=${step.k}
+          <span class="step-item-text">${targetPct}% target: ${step.amount_incidents_covered} covered (${step.coverage_rate}%) · ${step.amount_selected_docks} docks</span>
+          ${stepMapButton(mapPath)}
+        </div>
+      `;
+    });
+    const chartOutputs = (data.outputs || []).filter((path) => path.endsWith(".png"));
+    chartOutputs.forEach((chartPath) => {
+      const label = chartPath.includes("dock_efficiency")
+        ? "Dock efficiency vs docks"
+        : "Incidents covered vs target %";
+      html += `
+        <div class="step-item">
+          <span class="step-item-text">${label}</span>
+          <a class="btn ghost small" href="/api/outputs/file/${chartPath}" target="_blank" rel="noopener">Chart</a>
         </div>
       `;
     });
@@ -251,20 +281,29 @@ function renderOptimizationResults(data) {
     }
 
     if (steps.length > 1) {
-      html += `<div class="step-item">${steps.length} optimization steps completed.</div>`;
+      html += `<div class="step-item step-item-summary">${steps.length} optimization steps completed.</div>`;
       steps.forEach((step, index) => {
+        const mapPath = step.map || mapOutputs[index];
         html += `
           <div class="step-item">
-            Step ${index + 1}: ${step.amount_incidents_covered} covered · k=${step.k}
-            ${step.response_time_minutes != null ? ` · ${step.response_time_minutes} min` : ""}
+            <span class="step-item-text">Step ${index + 1}: ${step.amount_incidents_covered} covered · k=${step.k}${step.response_time_minutes != null ? ` · ${step.response_time_minutes} min` : ""}</span>
+            ${stepMapButton(mapPath)}
           </div>
         `;
       });
+    } else if (primaryMap) {
+      html += `
+        <div class="step-item">
+          <span class="step-item-text">Optimization map</span>
+          ${stepMapButton(primaryMap)}
+        </div>
+      `;
     }
   }
 
   container.innerHTML = html;
   container.classList.remove("hidden");
+  bindStepMapButtons(container);
 
   if (!rangeMode) {
     $("iterative-section").classList.remove("hidden");

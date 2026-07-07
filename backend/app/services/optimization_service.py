@@ -16,6 +16,7 @@ from src.docks_and_incidents import (
 )
 from src.optimization_model import MaximizeIncidentsCovered
 from visualizations.charts_optimization_results import (
+    chart_dock_efficiency_vs_docks,
     chart_incidents_covered_vs_k,
     chart_incidents_covered_vs_percentage,
 )
@@ -376,11 +377,18 @@ def run_optimization(
             step_results = {**step_results, "target_percentage": target_percentage}
             results_list.append(step_results)
 
+        chart_scenario = f"{map_prefix}_range"
         chart_path = chart_incidents_covered_vs_percentage(
             results_list,
-            scenario_name=f"{map_prefix}_range",
+            scenario_name=chart_scenario,
         )
         outputs.append(_relative_output_path(chart_path))
+        efficiency_chart_path = chart_dock_efficiency_vs_docks(
+            results_list,
+            total_incidents=len(incidents),
+            scenario_name=chart_scenario,
+        )
+        outputs.append(_relative_output_path(efficiency_chart_path))
 
         results = results_list[-1]
         return {
@@ -401,7 +409,7 @@ def run_optimization(
                 for step in results_list
             ],
             "outputs": outputs,
-            "map": outputs[-2],
+            "map": next((p for p in reversed(outputs) if p.endswith(".html")), None),
         }
 
     current_budget = budget

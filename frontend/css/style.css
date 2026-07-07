@@ -557,10 +557,27 @@ input[type="number"] {
 }
 
 .optimization-results .step-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
   margin-top: 0.35rem;
   padding-top: 0.35rem;
   border-top: 1px solid var(--border);
   color: var(--text-muted);
+}
+
+.optimization-results .step-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.optimization-results .step-item-summary {
+  justify-content: flex-start;
+}
+
+.optimization-results .step-map-btn {
+  flex-shrink: 0;
 }
 
 .iterative-section {
