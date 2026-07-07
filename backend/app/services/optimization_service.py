@@ -7,8 +7,6 @@ from typing import Any
 from app.config import OUTPUT_DIR
 from app.services.session import session
 from src.docks_and_incidents import (
-    RESPONSE_TIME,
-    RESPONSE_TIME_STEP_HOURS,
     clone_docks,
     create_docks_and_incidents,
     filter_priority_area,
@@ -307,7 +305,8 @@ def _run_single_optimization(
 def run_optimization(
     area: str,
     peak_day_only: bool,
-    budget: int,
+    response_time_minutes: float = 2,
+    budget: int = 8,
     open_priority_docks_first: bool = False,
     percentage_mode: str = "single",
     percentage_to_cover: float = 100,
@@ -316,7 +315,9 @@ def run_optimization(
     percentage_range_step: float | None = None,
     iterative: bool = False,
     increase_budget: bool = False,
+    budget_step: int = 1,
     increase_response_time: bool = False,
+    response_time_step: float = 1,
 ) -> dict[str, Any]:
     _ensure_backend_cwd()
 
@@ -326,7 +327,8 @@ def run_optimization(
     session.active_docks = docks
     session.active_incidents = incidents
 
-    working_docks = clone_docks(docks)
+    initial_response_time = response_time_minutes / 60
+    working_docks = clone_docks(docks, response_time=initial_response_time)
 
     priority_docks = None
     if open_priority_docks_first:
@@ -413,7 +415,7 @@ def run_optimization(
         }
 
     current_budget = budget
-    current_response_time = RESPONSE_TIME
+    current_response_time = initial_response_time
 
     results = _run_single_optimization(
         working_docks,
@@ -444,12 +446,12 @@ def run_optimization(
 
         while amount_incidents_covered < incidents_to_cover:
             if increase_response_time:
-                current_response_time += RESPONSE_TIME_STEP_HOURS
+                current_response_time += response_time_step / 60
                 working_docks = clone_docks(docks, response_time=current_response_time)
                 if priority_docks is not None:
                     priority_docks = _priority_docks(working_docks)
             if increase_budget:
-                current_budget += 1
+                current_budget += budget_step
 
             next_results = _run_single_optimization(
                 working_docks,
@@ -493,7 +495,9 @@ def run_optimization(
         "percentage_to_cover": percentage_to_cover,
         "iterative": iterative,
         "increase_budget": increase_budget,
+        "budget_step": budget_step,
         "increase_response_time": increase_response_time,
+        "response_time_step": response_time_step,
         "incidents_analyzed": len(incidents),
         "result": _serialize_result(results),
         "steps": [_serialize_result(step) for step in results_list],

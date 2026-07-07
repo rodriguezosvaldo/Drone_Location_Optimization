@@ -194,7 +194,8 @@ function resetOptimizationPanel() {
   $("area-full").checked = true;
   $("peak-day-toggle").checked = false;
   $("priority-docks-first-toggle").checked = false;
-  $("optimize-budget").value = 4;
+  $("optimize-response-time").value = 2;
+  $("optimize-budget").value = 8;
   $("percentage-mode-single").checked = true;
   $("optimize-percentage").value = 100;
   $("pct-range-start").value = 10;
@@ -203,6 +204,8 @@ function resetOptimizationPanel() {
   updatePercentageModePanels();
   $("increase-response-time-toggle").checked = false;
   $("increase-budget-toggle").checked = false;
+  $("response-time-step").value = 1;
+  $("budget-step").value = 1;
 
   $("run-optimize-btn").disabled = false;
   $("run-iterative-btn").disabled = false;
@@ -315,6 +318,7 @@ function buildOptimizePayload(iterative) {
   const payload = {
     area: selectedArea(),
     peak_day_only: $("peak-day-toggle").checked,
+    response_time_minutes: Number($("optimize-response-time").value),
     budget: Number($("optimize-budget").value),
     open_priority_docks_first: $("priority-docks-first-toggle").checked,
     percentage_mode: selectedPercentageMode(),
@@ -322,6 +326,13 @@ function buildOptimizePayload(iterative) {
     increase_budget: iterative && !rangeMode && $("increase-budget-toggle").checked,
     increase_response_time: iterative && !rangeMode && $("increase-response-time-toggle").checked,
   };
+
+  if (payload.increase_budget) {
+    payload.budget_step = Number($("budget-step").value);
+  }
+  if (payload.increase_response_time) {
+    payload.response_time_step = Number($("response-time-step").value);
+  }
 
   if (rangeMode) {
     payload.percentage_range_start = Number($("pct-range-start").value);
@@ -337,6 +348,10 @@ function buildOptimizePayload(iterative) {
 function validateOptimizePayload(payload, iterative) {
   if (!payload.area) {
     showToast("Select an analysis area.", "error");
+    return false;
+  }
+  if (!Number.isFinite(payload.response_time_minutes) || payload.response_time_minutes <= 0) {
+    showToast("Response time must be greater than 0.", "error");
     return false;
   }
   if (!Number.isFinite(payload.budget) || payload.budget < 1) {
@@ -377,6 +392,18 @@ function validateOptimizePayload(payload, iterative) {
   if (iterative && !payload.increase_budget && !payload.increase_response_time) {
     showToast("Enable at least one iterative option.", "error");
     return false;
+  }
+  if (iterative && payload.increase_budget) {
+    if (!Number.isFinite(payload.budget_step) || payload.budget_step < 1) {
+      showToast("Budget step must be at least 1.", "error");
+      return false;
+    }
+  }
+  if (iterative && payload.increase_response_time) {
+    if (!Number.isFinite(payload.response_time_step) || payload.response_time_step <= 0) {
+      showToast("Response time step must be greater than 0.", "error");
+      return false;
+    }
   }
   return true;
 }
@@ -625,6 +652,7 @@ function setupTooltip(buttonId, tooltipId) {
 function setupTooltips() {
   setupTooltip("priority-info-btn", "priority-tooltip");
   setupTooltip("peak-day-info-btn", "peak-day-tooltip");
+  setupTooltip("response-time-info-btn", "response-time-tooltip");
   setupTooltip("budget-info-btn", "budget-tooltip");
 
   document.addEventListener("click", (e) => {

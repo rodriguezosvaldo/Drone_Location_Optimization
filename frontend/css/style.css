@@ -586,6 +586,16 @@ input[type="number"] {
   border-top: 1px solid var(--border);
 }
 
+.iterative-step-panel {
+  display: none;
+  margin-top: -0.15rem;
+  margin-bottom: 0.35rem;
+}
+
+.iterative-option:has(input[type="checkbox"]:checked) .iterative-step-panel {
+  display: flex;
+}
+
 .iterative-section .btn {
   margin-top: 0.45rem;
 }

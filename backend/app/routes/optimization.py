@@ -15,7 +15,12 @@ class OptimizeRequest(BaseModel):
         True,
         description="Use only incidents from the busiest day in the selected area",
     )
-    budget: int = Field(..., ge=1, description="Maximum number of dock locations to open")
+    response_time_minutes: float = Field(
+        2,
+        gt=0,
+        description="Target drone response time in minutes",
+    )
+    budget: int = Field(8, ge=1, description="Maximum number of dock locations to open")
     open_priority_docks_first: bool = Field(
         False,
         description="Prioritize opening docks from the priority docks file",
@@ -46,7 +51,7 @@ class OptimizeRequest(BaseModel):
         None,
         ge=1,
         le=100,
-        description="Increment between percentage targets in range mode",
+        description="Step between percentage targets in range mode",
     )
     iterative: bool = Field(
         False,
@@ -54,11 +59,21 @@ class OptimizeRequest(BaseModel):
     )
     increase_budget: bool = Field(
         False,
-        description="Increase budget by 1 on each iterative step",
+        description="Increase budget on each iterative step",
+    )
+    budget_step: int = Field(
+        1,
+        ge=1,
+        description="Budget increase per iterative step",
     )
     increase_response_time: bool = Field(
         False,
         description="Increase drone response time on each iterative step",
+    )
+    response_time_step: float = Field(
+        1,
+        gt=0,
+        description="Response time increase in minutes per iterative step",
     )
 
     @model_validator(mode="after")
@@ -102,6 +117,7 @@ def _run_kwargs(payload: OptimizeRequest) -> dict:
     return {
         "area": payload.area,
         "peak_day_only": payload.peak_day_only,
+        "response_time_minutes": payload.response_time_minutes,
         "budget": payload.budget,
         "open_priority_docks_first": payload.open_priority_docks_first,
         "percentage_mode": payload.percentage_mode,
@@ -111,7 +127,9 @@ def _run_kwargs(payload: OptimizeRequest) -> dict:
         "percentage_range_step": payload.percentage_range_step,
         "iterative": payload.iterative,
         "increase_budget": payload.increase_budget,
+        "budget_step": payload.budget_step,
         "increase_response_time": payload.increase_response_time,
+        "response_time_step": payload.response_time_step,
     }
 
 
