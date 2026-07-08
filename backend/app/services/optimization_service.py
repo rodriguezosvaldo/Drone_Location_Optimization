@@ -82,9 +82,8 @@ def _require_loaded_data() -> None:
         not session.loaded
         or session.docks is None
         or session.all_incidents is None
-        or not session.priority_dock_names
     ):
-        raise ValueError("Upload incidents, docks, and priority docks files before continuing.")
+        raise ValueError("Upload incidents and docks files before continuing.")
 
 
 def _resolve_area_context(area: str, peak_day_only: bool) -> tuple[list[Any], list[Any], dict[str, float] | None]:
@@ -172,20 +171,21 @@ def load_priority_docks(priority_path: Path) -> dict[str, Any]:
 def load_data(
     docks_path: Path,
     incidents_path: Path,
-    priority_path: Path,
+    priority_path: Path | None = None,
 ) -> dict[str, Any]:
     _ensure_backend_cwd()
     if not docks_path.exists():
         raise FileNotFoundError(f"Docks file not found: {docks_path}")
     if not incidents_path.exists():
         raise FileNotFoundError(f"Incidents file not found: {incidents_path}")
-    if not priority_path.exists():
+    if priority_path is not None and not priority_path.exists():
         raise FileNotFoundError(f"Priority docks file not found: {priority_path}")
 
+    priority_file = str(priority_path) if priority_path else None
     docks, all_incidents, incidents_in_one_day, priority_dock_names = create_docks_and_incidents(
         str(docks_path),
         str(incidents_path),
-        str(priority_path),
+        priority_file,
     )
     session.priority_dock_names = priority_dock_names
 
@@ -213,7 +213,7 @@ def load_data(
         "priority_area_peak_incidents_count": session.priority_area_peak_incidents_count,
         "docks_file": docks_path.name,
         "incidents_file": incidents_path.name,
-        "priority_docks_count": len(session.priority_dock_names),
+        "priority_docks_count": len(session.priority_dock_names or []),
     }
     return result
 

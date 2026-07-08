@@ -28,17 +28,15 @@ def _missing_upload_labels() -> list[str]:
         missing.append("incidents")
     if not UPLOADED_DOCKS_PATH.exists():
         missing.append("docks")
-    if not UPLOADED_PRIORITY_DOCKS_PATH.exists():
-        missing.append("priority docks")
     return missing
 
 
-def _require_all_uploaded_files() -> None:
+def _require_required_uploaded_files() -> None:
     missing = _missing_upload_labels()
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Upload all three files before continuing. Missing: {', '.join(missing)}.",
+            detail=f"Upload incidents and docks before continuing. Missing: {', '.join(missing)}.",
         )
 
 
@@ -96,20 +94,30 @@ async def upload_priority_docks(file: UploadFile = File(...)):
 async def upload_all(
     incidents: UploadFile = File(...),
     docks: UploadFile = File(...),
-    priority_docks: UploadFile = File(...),
+    priority_docks: UploadFile | None = File(None),
 ):
     try:
         await _save_upload(incidents, UPLOADED_INCIDENTS_PATH)
         await _save_upload(docks, UPLOADED_DOCKS_PATH)
-        await _save_upload(priority_docks, UPLOADED_PRIORITY_DOCKS_PATH)
+
+        has_priority = bool(priority_docks and priority_docks.filename)
+        if has_priority:
+            await _save_upload(priority_docks, UPLOADED_PRIORITY_DOCKS_PATH)
+        elif UPLOADED_PRIORITY_DOCKS_PATH.exists():
+            UPLOADED_PRIORITY_DOCKS_PATH.unlink()
 
         result = optimization_service.load_data(
             UPLOADED_DOCKS_PATH,
             UPLOADED_INCIDENTS_PATH,
-            UPLOADED_PRIORITY_DOCKS_PATH,
+            UPLOADED_PRIORITY_DOCKS_PATH if has_priority else None,
+        )
+        message = (
+            "Uploaded and loaded incidents, docks, and priority docks."
+            if has_priority
+            else "Uploaded and loaded incidents and docks."
         )
         return {
-            "message": "Uploaded and loaded incidents, docks, and priority docks.",
+            "message": message,
             **result,
         }
     except FileNotFoundError as exc:
@@ -123,11 +131,16 @@ async def upload_all(
 @router.post("/load")
 def reload_uploaded_data():
     try:
-        _require_all_uploaded_files()
+        _require_required_uploaded_files()
+        priority_path = (
+            UPLOADED_PRIORITY_DOCKS_PATH
+            if UPLOADED_PRIORITY_DOCKS_PATH.exists()
+            else None
+        )
         result = optimization_service.load_data(
             UPLOADED_DOCKS_PATH,
             UPLOADED_INCIDENTS_PATH,
-            UPLOADED_PRIORITY_DOCKS_PATH,
+            priority_path,
         )
         return {"message": "Uploaded data reloaded successfully.", **result}
     except HTTPException:

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=15">
+  <link rel="stylesheet" href="css/style.css?v=16">
 </head>
 <body>
   <div class="app">
@@ -28,7 +28,7 @@
         </div>
 
         <div class="upload-card">
-          <p class="hint upload-note">All three files are required before you can analyze or optimize.</p>
+          <p class="hint upload-note">Incidents and docks are required. Priority docks file is optional.</p>
           <div class="upload-field">
             <div class="upload-field-header">
               <label class="field-label" for="incidents-file">Incidents file</label>
@@ -55,7 +55,7 @@
 
           <div class="upload-field">
             <div class="upload-field-header">
-              <label class="field-label" for="priority-file">Priority Docks file</label>
+              <label class="field-label" for="priority-file">Priority Docks file <span class="optional-tag">(optional)</span></label>
               <p class="hint">Required column: <code>name</code> (must match docks file)</p>
             </div>
             <label class="file-drop" id="priority-drop">
@@ -77,8 +77,8 @@
               <input type="radio" name="area-mode" value="full" id="area-full" checked>
               <span>Entire Area</span>
             </label>
-            <label class="radio-option">
-              <input type="radio" name="area-mode" value="specific" id="area-priority">
+            <label class="radio-option disabled">
+              <input type="radio" name="area-mode" value="specific" id="area-priority" disabled>
               <span>Priority Area</span>
               <button type="button" class="info-btn" id="priority-info-btn" aria-label="About priority area">!</button>
             </label>
@@ -106,10 +106,10 @@
         <div class="card optimization-card">
           <h3 class="section-title">Optimization Params</h3>
 
-          <div class="toggle-row">
+          <div class="toggle-row disabled">
             <label class="toggle-label" for="priority-docks-first-toggle">Open priority docks first</label>
             <label class="toggle-switch">
-              <input type="checkbox" id="priority-docks-first-toggle">
+              <input type="checkbox" id="priority-docks-first-toggle" disabled>
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -249,6 +249,6 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="js/app.js?v=15"></script>
+  <script src="js/app.js?v=16"></script>
 </body>
 </html>

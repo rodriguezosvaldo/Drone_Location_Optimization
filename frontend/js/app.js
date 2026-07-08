@@ -128,10 +128,14 @@ function buildPercentageRangeValues(start, end, step) {
 function updatePriorityAreaOption(status) {
   const priorityRadio = $("area-priority");
   const priorityLabel = priorityRadio.closest(".radio-option");
+  const priorityInfoBtn = $("priority-info-btn");
   const hasPriority = status.priority_docks_loaded;
 
   priorityRadio.disabled = !hasPriority;
   priorityLabel.classList.toggle("disabled", !hasPriority);
+  if (priorityInfoBtn) {
+    priorityInfoBtn.disabled = !hasPriority;
+  }
 
   if (!hasPriority && priorityRadio.checked) {
     $("area-full").checked = true;
@@ -177,11 +181,13 @@ async function refreshStatus() {
       text.textContent = msg;
     } else {
       dot.className = "status-dot offline";
-      text.textContent = "Upload incidents, docks, and priority docks";
+      text.textContent = "Upload incidents and docks";
     }
   } catch {
     $("status-text").textContent = "Could not connect to server";
     $("status-dot").className = "status-dot offline";
+    updatePriorityAreaOption({ priority_docks_loaded: false });
+    updatePriorityDocksFirstOption({ priority_docks_loaded: false });
   }
 }
 
@@ -462,17 +468,18 @@ async function uploadAll() {
   const missing = [];
   if (!incidents) missing.push("incidents");
   if (!docks) missing.push("docks");
-  if (!priority) missing.push("priority docks");
 
   if (missing.length) {
-    showToast(`Select all three files before uploading. Missing: ${missing.join(", ")}.`, "error");
+    showToast(`Select incidents and docks before uploading. Missing: ${missing.join(", ")}.`, "error");
     return;
   }
 
   const formData = new FormData();
   formData.append("incidents", incidents);
   formData.append("docks", docks);
-  formData.append("priority_docks", priority);
+  if (priority) {
+    formData.append("priority_docks", priority);
+  }
 
   const btn = $("upload-btn");
   btn.disabled = true;

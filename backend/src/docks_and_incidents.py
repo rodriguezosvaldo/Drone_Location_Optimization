@@ -270,11 +270,18 @@ def get_incidents_by_date(incidents):
 
     return incidents_in_one_day
 
-def create_docks_and_incidents(docks_excel_file_path, incidents_excel_file_path, priority_docks_excel_file_path):
+def create_docks_and_incidents(
+    docks_excel_file_path,
+    incidents_excel_file_path,
+    priority_docks_excel_file_path=None,
+):
     print("Creating docks and incidents...")
     docks = get_docks(docks_excel_file_path)
     incidents = get_incidents(incidents_excel_file_path)
     incidents_in_one_day = get_incidents_by_date(incidents)
-    priority_dock_names = get_priority_dock_names(priority_docks_excel_file_path)
+    if priority_docks_excel_file_path:
+        priority_dock_names = get_priority_dock_names(priority_docks_excel_file_path)
+    else:
+        priority_dock_names = None
 
     return docks, incidents, incidents_in_one_day, priority_dock_names
