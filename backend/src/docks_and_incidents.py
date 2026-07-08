@@ -49,18 +49,17 @@ class Dock:
         self.coverage_capacity = new_coverage_capacity
         return self.coverage_capacity
 
-def clone_docks(docks, response_time=None):
-    """Return a new list of Dock objects, optionally overriding response time."""
+def clone_docks(docks, response_time=None, drone_speed=None):
+    """Return a new list of Dock objects, optionally overriding response time and drone speed."""
     cloned = []
     for dock in docks:
         new_dock = Dock(dock.name, dock.latitude, dock.longitude)
-        if response_time is not None:
-            new_dock.change_response_time(response_time)
-        else:
-            new_dock.response_time = dock.response_time
-            new_dock.effective_radius = dock.effective_radius
-            new_dock.drone_speed = dock.drone_speed
-            new_dock.drone_coverage_capacity = dock.drone_coverage_capacity
+        new_dock.drone_coverage_capacity = dock.drone_coverage_capacity
+        speed = drone_speed if drone_speed is not None else dock.drone_speed
+        rt = response_time if response_time is not None else dock.response_time
+        new_dock.drone_speed = speed
+        new_dock.response_time = rt
+        new_dock.effective_radius = speed * rt
         cloned.append(new_dock)
     return cloned
 

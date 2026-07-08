@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=14">
+  <link rel="stylesheet" href="css/style.css?v=15">
 </head>
 <body>
   <div class="app">
@@ -112,6 +112,17 @@
               <input type="checkbox" id="priority-docks-first-toggle">
               <span class="toggle-slider"></span>
             </label>
+          </div>
+
+          <div class="param-row">
+            <div class="param-label">
+              <label for="optimize-drone-speed">Drone speed</label>
+              <button type="button" class="info-btn" id="drone-speed-info-btn" aria-label="About drone speed">!</button>
+            </div>
+            <input type="number" id="optimize-drone-speed" class="param-input" min="0.1" step="0.1" value="35.8">
+          </div>
+          <div class="tooltip-popup hidden" id="drone-speed-tooltip" role="tooltip">
+            Drone flight speed in miles per hour. Defines the effective coverage radius together with response time.
           </div>
 
           <div class="param-row">
@@ -238,6 +249,6 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="js/app.js?v=14"></script>
+  <script src="js/app.js?v=15"></script>
 </body>
 </html>

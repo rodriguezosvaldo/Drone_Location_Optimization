@@ -187,6 +187,7 @@ class MaximizeIncidentsCovered:
             "selected_docks": selected_docks,
             "incidents_covered": incidents_covered,
             "dock_assignments": dock_assignments,
+            "drone_speed": self.docks[0].drone_speed if self.docks else None,
             "response_time": self.docks[0].response_time if self.docks else None,
         }
 

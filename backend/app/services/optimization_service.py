@@ -48,6 +48,8 @@ def _serialize_result(result: dict, *, target_percentage: float | None = None) -
     }
     if target_percentage is not None:
         payload["target_percentage"] = target_percentage
+    if result.get("drone_speed") is not None:
+        payload["drone_speed_mph"] = round(result["drone_speed"], 2)
     if result.get("response_time") is not None:
         payload["response_time_minutes"] = round(result["response_time"] * 60, 2)
     return payload
@@ -305,6 +307,7 @@ def _run_single_optimization(
 def run_optimization(
     area: str,
     peak_day_only: bool,
+    drone_speed_mph: float = 35.8,
     response_time_minutes: float = 2,
     budget: int = 8,
     open_priority_docks_first: bool = False,
@@ -328,7 +331,11 @@ def run_optimization(
     session.active_incidents = incidents
 
     initial_response_time = response_time_minutes / 60
-    working_docks = clone_docks(docks, response_time=initial_response_time)
+    working_docks = clone_docks(
+        docks,
+        response_time=initial_response_time,
+        drone_speed=drone_speed_mph,
+    )
 
     priority_docks = None
     if open_priority_docks_first:
@@ -397,6 +404,7 @@ def run_optimization(
             "scenario": "priority_docks" if open_priority_docks_first else "maximize_coverage",
             "area": area,
             "peak_day_only": peak_day_only,
+            "drone_speed_mph": drone_speed_mph,
             "percentage_mode": "range",
             "percentage_range_start": percentage_range_start,
             "percentage_range_end": percentage_range_end,
@@ -447,7 +455,11 @@ def run_optimization(
         while amount_incidents_covered < incidents_to_cover:
             if increase_response_time:
                 current_response_time += response_time_step / 60
-                working_docks = clone_docks(docks, response_time=current_response_time)
+                working_docks = clone_docks(
+                    docks,
+                    response_time=current_response_time,
+                    drone_speed=drone_speed_mph,
+                )
                 if priority_docks is not None:
                     priority_docks = _priority_docks(working_docks)
             if increase_budget:
@@ -491,6 +503,7 @@ def run_optimization(
         "scenario": "priority_docks" if open_priority_docks_first else "maximize_coverage",
         "area": area,
         "peak_day_only": peak_day_only,
+        "drone_speed_mph": drone_speed_mph,
         "percentage_mode": "single",
         "percentage_to_cover": percentage_to_cover,
         "iterative": iterative,

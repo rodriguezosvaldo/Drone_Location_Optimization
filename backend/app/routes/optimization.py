@@ -15,6 +15,11 @@ class OptimizeRequest(BaseModel):
         True,
         description="Use only incidents from the busiest day in the selected area",
     )
+    drone_speed_mph: float = Field(
+        35.8,
+        gt=0,
+        description="Drone flight speed in miles per hour",
+    )
     response_time_minutes: float = Field(
         2,
         gt=0,
@@ -117,6 +122,7 @@ def _run_kwargs(payload: OptimizeRequest) -> dict:
     return {
         "area": payload.area,
         "peak_day_only": payload.peak_day_only,
+        "drone_speed_mph": payload.drone_speed_mph,
         "response_time_minutes": payload.response_time_minutes,
         "budget": payload.budget,
         "open_priority_docks_first": payload.open_priority_docks_first,

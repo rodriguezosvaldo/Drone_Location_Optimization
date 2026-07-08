@@ -46,6 +46,21 @@ function setupNavigation() {
   });
 }
 
+function setFileNameState(nameEl, state) {
+  nameEl.classList.remove("selected", "uploaded");
+  if (state === "selected") {
+    nameEl.classList.add("selected");
+  } else if (state === "uploaded") {
+    nameEl.classList.add("uploaded");
+  }
+}
+
+function updateFileNameFromInput(input, nameEl) {
+  const file = input.files[0];
+  nameEl.textContent = file?.name || "No file selected";
+  setFileNameState(nameEl, file ? "selected" : null);
+}
+
 function setupFileDrop(dropId, inputId, nameId) {
   const drop = $(dropId);
   const input = $(inputId);
@@ -61,11 +76,23 @@ function setupFileDrop(dropId, inputId, nameId) {
     drop.classList.remove("dragover");
     if (e.dataTransfer.files.length) {
       input.files = e.dataTransfer.files;
-      nameEl.textContent = e.dataTransfer.files[0].name;
+      updateFileNameFromInput(input, nameEl);
     }
   });
   input.addEventListener("change", () => {
-    nameEl.textContent = input.files[0]?.name || "No file selected";
+    updateFileNameFromInput(input, nameEl);
+  });
+}
+
+function markUploadedFileNames() {
+  [
+    ["incidents-file", "incidents-file-name"],
+    ["docks-file", "docks-file-name"],
+    ["priority-file", "priority-file-name"],
+  ].forEach(([inputId, nameId]) => {
+    if ($(inputId).files[0]) {
+      setFileNameState($(nameId), "uploaded");
+    }
   });
 }
 
@@ -279,6 +306,10 @@ function renderOptimizationResults(data) {
       <div>Docks used: ${result.amount_selected_docks} / budget ${result.k}</div>
     `;
 
+    if (result.drone_speed_mph != null) {
+      html += `<div>Drone speed: ${result.drone_speed_mph} mph</div>`;
+    }
+
     if (result.response_time_minutes != null) {
       html += `<div>Response time: ${result.response_time_minutes} min</div>`;
     }
@@ -318,6 +349,7 @@ function buildOptimizePayload(iterative) {
   const payload = {
     area: selectedArea(),
     peak_day_only: $("peak-day-toggle").checked,
+    drone_speed_mph: Number($("optimize-drone-speed").value),
     response_time_minutes: Number($("optimize-response-time").value),
     budget: Number($("optimize-budget").value),
     open_priority_docks_first: $("priority-docks-first-toggle").checked,
@@ -348,6 +380,10 @@ function buildOptimizePayload(iterative) {
 function validateOptimizePayload(payload, iterative) {
   if (!payload.area) {
     showToast("Select an analysis area.", "error");
+    return false;
+  }
+  if (!Number.isFinite(payload.drone_speed_mph) || payload.drone_speed_mph <= 0) {
+    showToast("Drone speed must be greater than 0.", "error");
     return false;
   }
   if (!Number.isFinite(payload.response_time_minutes) || payload.response_time_minutes <= 0) {
@@ -444,6 +480,7 @@ async function uploadAll() {
   try {
     const result = await api("/api/data/upload", { method: "POST", body: formData });
     showToast(result.message);
+    markUploadedFileNames();
     await refreshStatus();
   } catch (error) {
     showToast(error.message, "error");
@@ -652,6 +689,7 @@ function setupTooltip(buttonId, tooltipId) {
 function setupTooltips() {
   setupTooltip("priority-info-btn", "priority-tooltip");
   setupTooltip("peak-day-info-btn", "peak-day-tooltip");
+  setupTooltip("drone-speed-info-btn", "drone-speed-tooltip");
   setupTooltip("response-time-info-btn", "response-time-tooltip");
   setupTooltip("budget-info-btn", "budget-tooltip");
 

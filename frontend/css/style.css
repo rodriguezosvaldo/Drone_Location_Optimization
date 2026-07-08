@@ -240,6 +240,17 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+.file-name.selected {
+  color: var(--warning);
+  font-weight: 500;
+}
+
+.file-name.uploaded {
+  color: var(--success);
+  font-weight: 500;
 }
 
 .btn {
