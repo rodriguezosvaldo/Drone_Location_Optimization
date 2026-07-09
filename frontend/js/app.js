@@ -355,6 +355,7 @@ function buildOptimizePayload(iterative) {
   const payload = {
     area: selectedArea(),
     peak_day_only: $("peak-day-toggle").checked,
+    drone_coverage_capacity: Number($("optimize-drone-coverage-capacity").value),
     drone_speed_mph: Number($("optimize-drone-speed").value),
     response_time_minutes: Number($("optimize-response-time").value),
     budget: Number($("optimize-budget").value),
@@ -386,6 +387,10 @@ function buildOptimizePayload(iterative) {
 function validateOptimizePayload(payload, iterative) {
   if (!payload.area) {
     showToast("Select an analysis area.", "error");
+    return false;
+  }
+  if (!Number.isFinite(payload.drone_coverage_capacity) || payload.drone_coverage_capacity < 1) {
+    showToast("Drone coverage capacity must be at least 1.", "error");
     return false;
   }
   if (!Number.isFinite(payload.drone_speed_mph) || payload.drone_speed_mph <= 0) {
@@ -696,6 +701,7 @@ function setupTooltip(buttonId, tooltipId) {
 function setupTooltips() {
   setupTooltip("priority-info-btn", "priority-tooltip");
   setupTooltip("peak-day-info-btn", "peak-day-tooltip");
+  setupTooltip("drone-coverage-capacity-info-btn", "drone-coverage-capacity-tooltip");
   setupTooltip("drone-speed-info-btn", "drone-speed-tooltip");
   setupTooltip("response-time-info-btn", "response-time-tooltip");
   setupTooltip("budget-info-btn", "budget-tooltip");

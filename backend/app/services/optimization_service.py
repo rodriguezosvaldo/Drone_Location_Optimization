@@ -307,6 +307,7 @@ def _run_single_optimization(
 def run_optimization(
     area: str,
     peak_day_only: bool,
+    drone_coverage_capacity: int = 10,
     drone_speed_mph: float = 35.8,
     response_time_minutes: float = 2,
     budget: int = 8,
@@ -335,6 +336,7 @@ def run_optimization(
         docks,
         response_time=initial_response_time,
         drone_speed=drone_speed_mph,
+        drone_coverage_capacity=drone_coverage_capacity,
     )
 
     priority_docks = None
@@ -404,6 +406,7 @@ def run_optimization(
             "scenario": "priority_docks" if open_priority_docks_first else "maximize_coverage",
             "area": area,
             "peak_day_only": peak_day_only,
+            "drone_coverage_capacity": drone_coverage_capacity,
             "drone_speed_mph": drone_speed_mph,
             "percentage_mode": "range",
             "percentage_range_start": percentage_range_start,
@@ -459,6 +462,7 @@ def run_optimization(
                     docks,
                     response_time=current_response_time,
                     drone_speed=drone_speed_mph,
+                    drone_coverage_capacity=drone_coverage_capacity,
                 )
                 if priority_docks is not None:
                     priority_docks = _priority_docks(working_docks)
@@ -503,6 +507,7 @@ def run_optimization(
         "scenario": "priority_docks" if open_priority_docks_first else "maximize_coverage",
         "area": area,
         "peak_day_only": peak_day_only,
+        "drone_coverage_capacity": drone_coverage_capacity,
         "drone_speed_mph": drone_speed_mph,
         "percentage_mode": "single",
         "percentage_to_cover": percentage_to_cover,

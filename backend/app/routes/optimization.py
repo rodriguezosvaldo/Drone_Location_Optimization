@@ -15,6 +15,11 @@ class OptimizeRequest(BaseModel):
         True,
         description="Use only incidents from the busiest day in the selected area",
     )
+    drone_coverage_capacity: int = Field(
+        10,
+        ge=1,
+        description="Maximum incidents a single drone at a dock can cover per day",
+    )
     drone_speed_mph: float = Field(
         35.8,
         gt=0,
@@ -122,6 +127,7 @@ def _run_kwargs(payload: OptimizeRequest) -> dict:
     return {
         "area": payload.area,
         "peak_day_only": payload.peak_day_only,
+        "drone_coverage_capacity": payload.drone_coverage_capacity,
         "drone_speed_mph": payload.drone_speed_mph,
         "response_time_minutes": payload.response_time_minutes,
         "budget": payload.budget,
