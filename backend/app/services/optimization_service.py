@@ -454,8 +454,11 @@ def run_optimization(
     if iterative and (increase_budget or increase_response_time):
         incidents_to_cover = len(incidents)
         amount_incidents_covered = results["amount_incidents_covered"]
+        max_iterations = 20
+        iteration_count = 0
 
-        while amount_incidents_covered < incidents_to_cover:
+        while amount_incidents_covered < incidents_to_cover and iteration_count < max_iterations:
+            iteration_count += 1
             if increase_response_time:
                 current_response_time += response_time_step / 60
                 working_docks = clone_docks(
@@ -493,7 +496,12 @@ def run_optimization(
             )
             results_list.append(next_results)
 
-            if next_results["amount_incidents_covered"] == amount_incidents_covered:
+            # Keep iterating on response-time sweeps even if coverage plateaus.
+            # For budget-only iterations, preserve the current early-stop behavior.
+            if (
+                next_results["amount_incidents_covered"] == amount_incidents_covered
+                and not increase_response_time
+            ):
                 break
 
             amount_incidents_covered = next_results["amount_incidents_covered"]

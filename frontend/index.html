@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=16">
+  <link rel="stylesheet" href="css/style.css?v=17">
 </head>
 <body>
   <div class="app">
@@ -15,6 +15,7 @@
       <nav class="nav">
         <button class="nav-btn active" data-section="data">Data</button>
         <button class="nav-btn" data-section="optimization">Optimization</button>
+        <button class="nav-btn" data-section="compare" title="Compare Optimizations">Compare</button>
         <button class="nav-btn" data-section="results">Results</button>
       </nav>
 
@@ -236,6 +237,45 @@
         <button class="btn outline full-width optimization-refresh-btn" id="optimization-refresh-btn">Refresh</button>
       </section>
 
+      <section id="section-compare" class="sidebar-panel">
+        <div class="card optimization-card">
+          <fieldset class="radio-group" id="compare-area-radio-group">
+            <legend class="sr-only">Analysis area</legend>
+            <label class="radio-option">
+              <input type="radio" name="compare-area-mode" value="full" id="compare-area-full" checked>
+              <span>Entire Area</span>
+            </label>
+            <label class="radio-option disabled">
+              <input type="radio" name="compare-area-mode" value="specific" id="compare-area-priority" disabled>
+              <span>Priority Area</span>
+              <button type="button" class="info-btn" id="compare-priority-info-btn" aria-label="About priority area">!</button>
+            </label>
+          </fieldset>
+
+          <div class="tooltip-popup hidden" id="compare-priority-tooltip" role="tooltip">
+            Area around priority docks
+          </div>
+
+          <div class="toggle-row">
+            <label class="toggle-label" for="compare-peak-day-toggle">Peak day incidents</label>
+            <button type="button" class="info-btn" id="compare-peak-day-info-btn" aria-label="About peak day incidents">!</button>
+            <label class="toggle-switch">
+              <input type="checkbox" id="compare-peak-day-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="tooltip-popup hidden" id="compare-peak-day-tooltip" role="tooltip">
+            When enabled, only incidents from the busiest day in the selected area are used. When disabled, all incidents in the dataset for that area are used.
+          </div>
+
+          <button class="btn outline full-width" id="compare-generate-map-btn">Generate Map</button>
+        </div>
+
+        <div id="compare-scenarios-container"></div>
+
+        <button class="btn outline full-width optimization-refresh-btn" id="compare-refresh-btn">Refresh</button>
+      </section>
+
       <section id="section-results" class="sidebar-panel">
         <div class="card">
           <div class="outputs-header">
@@ -254,12 +294,47 @@
         </div>
         <iframe id="map-frame" class="hidden" title="Generated map"></iframe>
       </div>
+
+      <div class="compare-workspace hidden" id="compare-workspace">
+        <div class="compare-column" data-scenario="s1">
+          <h3 class="compare-column-title">Scenario 1</h3>
+          <div class="compare-panel compare-map-panel">
+            <div class="compare-placeholder" id="cmp-s1-map-placeholder">
+              <span class="map-placeholder-text">Map</span>
+            </div>
+            <iframe id="cmp-s1-map-frame" class="hidden" title="Scenario 1 map"></iframe>
+          </div>
+          <div class="compare-panel compare-chart-panel">
+            <div class="compare-placeholder" id="cmp-s1-chart-placeholder">
+              <span class="map-placeholder-text">Chart</span>
+            </div>
+            <img id="cmp-s1-chart-img" class="compare-chart-img hidden" alt="Scenario 1 chart">
+            <div class="compare-chart-summary hidden" id="cmp-s1-chart-summary"></div>
+          </div>
+        </div>
+        <div class="compare-column" data-scenario="s2">
+          <h3 class="compare-column-title">Scenario 2</h3>
+          <div class="compare-panel compare-map-panel">
+            <div class="compare-placeholder" id="cmp-s2-map-placeholder">
+              <span class="map-placeholder-text">Map</span>
+            </div>
+            <iframe id="cmp-s2-map-frame" class="hidden" title="Scenario 2 map"></iframe>
+          </div>
+          <div class="compare-panel compare-chart-panel">
+            <div class="compare-placeholder" id="cmp-s2-chart-placeholder">
+              <span class="map-placeholder-text">Chart</span>
+            </div>
+            <img id="cmp-s2-chart-img" class="compare-chart-img hidden" alt="Scenario 2 chart">
+            <div class="compare-chart-summary hidden" id="cmp-s2-chart-summary"></div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <p class="canvas-hint">To move the canvas, hold scroll wheel or Space while dragging.</p>
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="js/app.js?v=17"></script>
+  <script src="js/app.js?v=19"></script>
 </body>
 </html>

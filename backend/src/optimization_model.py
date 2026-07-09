@@ -127,14 +127,27 @@ class MaximizeIncidentsCovered:
         remaining_docks = [dock for dock in docks if dock not in priority_docks]
         remaining_pairs = [(d, i) for d, i in assignable_pairs if d in remaining_docks]
         specific_pairs = [(d, i) for d, i in assignable_pairs if d in priority_docks]
+        priority_pairs_by_incident = {incident: [] for incident in incidents}
+        for dock, incident in specific_pairs:
+            priority_pairs_by_incident[incident].append((dock, incident))
+        w = model.addVars(incidents, vtype=gp.GRB.BINARY, name="w")
+        for incident in incidents:
+            priority_pairs = priority_pairs_by_incident[incident]
+            if priority_pairs:
+                model.addConstr(
+                    w[incident] <= gp.quicksum(z[dock, inc] for dock, inc in priority_pairs)
+                )
+            else:
+                model.addConstr(w[incident] == 0)
+            model.addConstr(w[incident] <= y[incident])
 
         model.setObjectiveN(
-            gp.quicksum(x[d] for d in priority_docks),
+            gp.quicksum(w[i] for i in incidents),
             index=0,
             priority=3,
             abstol=1e-6,
             reltol=0,
-            name="specific_docks",
+            name="priority_incident_coverage",
         )
         model.setObjectiveN(
             gp.quicksum(y[i] for i in incidents),
