@@ -23,7 +23,7 @@ from matplotlib.patches import Patch
 from matplotlib.ticker import MultipleLocator
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-DEFAULT_INPUT = PROJECT_ROOT / "for_charts.xlsx"
+DEFAULT_INPUT = PROJECT_ROOT / "tables_increase_response_time.xlsx"
 DEFAULT_OUTPUT = PROJECT_ROOT / "output" / "figures" / "docks_opened_vs_response_time.png"
 DEFAULT_COMPARISON_OUTPUT = (
     PROJECT_ROOT / "output" / "figures" / "docks_opened_vs_response_time_comparison.png"
