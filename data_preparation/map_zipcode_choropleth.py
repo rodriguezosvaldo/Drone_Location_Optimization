@@ -1,15 +1,20 @@
 """
-Folium choropleth map of Jefferson County zip codes colored by incidents-per-dock ratio.
+Folium maps for MetroSafe dock analysis:
+  1. Zip-code choropleth colored by incidents-per-dock ratio
+  2. Dock utilization map colored/sized by flight takeoff counts
+
 Data sources:
   - LOJIC Jefferson County KY ZIP Codes (GeoJSON)
   - output/clean_and_geocoded_LMPD_data_2025.xlsx
   - output/docks_JCPS_MetroSafe.xlsx
   - output/clean_and_geocoded_JCPS_schools.xlsx
-  - data/Dataflights1.xlsx
+  - data/Dataflights1.xlsx (dock locations / zip lookup)
+  - data/Dataflights.xlsx (flight takeoffs for dock utilization)
 """
 from __future__ import annotations
 
 import json
+import math
 import re
 import urllib.request
 from pathlib import Path
@@ -23,8 +28,10 @@ DEFAULT_LMPD_PATH = PROJECT_ROOT / "output" / "clean_and_geocoded_LMPD_data_2025
 DEFAULT_DOCKS_PATH = PROJECT_ROOT / "output" / "docks_JCPS_MetroSafe.xlsx"
 DEFAULT_JCPS_PATH = PROJECT_ROOT / "output" / "clean_and_geocoded_JCPS_schools.xlsx"
 DEFAULT_DATAFLIGHTS_PATH = PROJECT_ROOT / "data" / "Dataflights1.xlsx"
+DEFAULT_FLIGHTS_LOG_PATH = PROJECT_ROOT / "data" / "Dataflights.xlsx"
 DEFAULT_GEOJSON_PATH = PROJECT_ROOT / "data" / "geo" / "jefferson_county_zip_codes.geojson"
 DEFAULT_OUTPUT_HTML = PROJECT_ROOT / "output" / "incidents_vs_docks_zipcode_map.html"
+DEFAULT_DOCK_UTILIZATION_HTML = PROJECT_ROOT / "output" / "dock_utilization_map.html"
 
 LOJIC_ZIP_GEOJSON_URL = (
     "https://gis.lojic.org/maps/rest/services/LojicSolutions/OpenDataAddresses/"
@@ -37,6 +44,8 @@ COLOR_HIGH = (215, 48, 39)     # intense red (high incidents per dock)
 COLOR_INCIDENTS_NO_DOCKS = "#41ab5d"  # green
 COLOR_DOCKS_NO_INCIDENTS = "#ffd92f"  # yellow
 NO_DATA_COLOR = "#d9d9d9"
+MILES_TO_METERS = 1609.34
+DOCK_CIRCLE_DIAMETER_MILES = 1.18
 _ZIP_RE = re.compile(r"\b(\d{5})\b")
 
 
@@ -154,6 +163,217 @@ def _ratio_to_color(ratio: float, vmin: float, vmax: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+def load_dock_utilization(
+    flights_path: Path | str = DEFAULT_FLIGHTS_LOG_PATH,
+    *,
+    merge_distance_miles: float = 0.05,
+) -> pd.DataFrame:
+    """Aggregate flight takeoffs by dock address (median lat/lon for GPS jitter).
+
+    Docks within ``merge_distance_miles`` are merged so co-located GPS points
+    (e.g. mis-tagged addresses) do not stack overlapping labels.
+    """
+    df = pd.read_excel(flights_path)
+    required = {"Takeoff Address", "Takeoff Latitude", "Takeoff Longitude"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Flight log missing columns: {sorted(missing)}")
+
+    usable = df.dropna(subset=["Takeoff Address", "Takeoff Latitude", "Takeoff Longitude"]).copy()
+    usable["Takeoff Address"] = usable["Takeoff Address"].astype(str).str.strip()
+    usable = usable.loc[usable["Takeoff Address"] != ""].copy()
+
+    stats = (
+        usable.groupby("Takeoff Address", as_index=False)
+        .agg(
+            latitude=("Takeoff Latitude", "median"),
+            longitude=("Takeoff Longitude", "median"),
+            flights=("Takeoff Address", "size"),
+        )
+        .sort_values("flights", ascending=False)
+        .reset_index(drop=True)
+    )
+    stats["zip_code"] = stats["Takeoff Address"].map(extract_zip_from_address)
+    stats["short_name"] = stats["Takeoff Address"].str.split(",").str[0].str.strip()
+    return _merge_nearby_docks(stats, merge_distance_miles=merge_distance_miles)
+
+
+def _miles_between(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    delta_lat = abs(lat1 - lat2) * 69.0
+    mean_lat = (lat1 + lat2) / 2.0
+    delta_lon = abs(lon1 - lon2) * abs(math.cos(math.radians(mean_lat))) * 69.0
+    return (delta_lat**2 + delta_lon**2) ** 0.5
+
+
+def _merge_nearby_docks(
+    stats: pd.DataFrame,
+    *,
+    merge_distance_miles: float = 0.05,
+) -> pd.DataFrame:
+    """Merge docks within a short distance; keep the busiest address as the label."""
+    if stats.empty or merge_distance_miles <= 0:
+        return stats
+
+    ordered = stats.sort_values("flights", ascending=False).reset_index(drop=True)
+    used: set[int] = set()
+    merged_rows: list[dict] = []
+
+    for i, primary in ordered.iterrows():
+        if i in used:
+            continue
+        cluster = [i]
+        for j in range(i + 1, len(ordered)):
+            if j in used:
+                continue
+            other = ordered.loc[j]
+            if (
+                _miles_between(
+                    float(primary["latitude"]),
+                    float(primary["longitude"]),
+                    float(other["latitude"]),
+                    float(other["longitude"]),
+                )
+                <= merge_distance_miles
+            ):
+                cluster.append(j)
+
+        used.update(cluster)
+        members = ordered.loc[cluster]
+        total_flights = int(members["flights"].sum())
+        extra_names = [
+            name
+            for name in members["short_name"].tolist()
+            if name != primary["short_name"]
+        ]
+        label = primary["short_name"]
+        if extra_names:
+            label = f"{primary['short_name']} (+{len(extra_names)} nearby)"
+
+        merged_rows.append(
+            {
+                "Takeoff Address": primary["Takeoff Address"],
+                "latitude": float(primary["latitude"]),
+                "longitude": float(primary["longitude"]),
+                "flights": total_flights,
+                "zip_code": primary["zip_code"],
+                "short_name": label,
+            }
+        )
+
+    return (
+        pd.DataFrame(merged_rows)
+        .sort_values("flights", ascending=False)
+        .reset_index(drop=True)
+    )
+
+
+def _dock_utilization_legend_html(vmin: float, vmax: float, diameter_miles: float) -> str:
+    return f"""
+    <div style="
+        position: fixed;
+        bottom: 25px;
+        left: 25px;
+        z-index: 1000;
+        background-color: white;
+        border: 2px solid #666;
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-size: 13px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        max-width: 280px;
+    ">
+        <div style="font-weight: bold; margin-bottom: 8px;">
+            Dock utilization (takeoffs)
+        </div>
+        <div style="
+            height: 16px;
+            width: 220px;
+            background: linear-gradient(to right, rgb({COLOR_LOW[0]},{COLOR_LOW[1]},{COLOR_LOW[2]}), rgb({COLOR_HIGH[0]},{COLOR_HIGH[1]},{COLOR_HIGH[2]}));
+            border: 1px solid #666;
+            margin-bottom: 6px;
+        "></div>
+        <div style="display: flex; justify-content: space-between; width: 220px;">
+            <span>Fewer<br>{int(vmin)}</span>
+            <span>More<br>{int(vmax)}</span>
+        </div>
+        <div style="margin-top: 8px; color: #555;">
+            Color scales with flight count.<br>
+            Circles are fixed at {diameter_miles:.2f} mi diameter.<br>
+            Red = most used docks
+        </div>
+    </div>
+    """
+
+
+def create_dock_utilization_map(
+    dock_stats: pd.DataFrame | None = None,
+    *,
+    flights_path: Path | str = DEFAULT_FLIGHTS_LOG_PATH,
+    geojson_path: Path | str = DEFAULT_GEOJSON_PATH,
+    output_path: Path | str = DEFAULT_DOCK_UTILIZATION_HTML,
+    show_zip_boundaries: bool = True,
+    circle_diameter_miles: float = DOCK_CIRCLE_DIAMETER_MILES,
+) -> folium.Map:
+    """Build a Folium map of docks colored by takeoff count; all circles share a fixed geographic diameter."""
+    dock_stats = dock_stats if dock_stats is not None else load_dock_utilization(flights_path)
+    if dock_stats.empty:
+        raise ValueError("No dock utilization rows to map.")
+
+    vmin = float(dock_stats["flights"].min())
+    vmax = float(dock_stats["flights"].max())
+    radius_meters = (circle_diameter_miles / 2.0) * MILES_TO_METERS
+
+    folium_map = folium.Map(location=LOUISVILLE_CENTER, zoom_start=11, tiles="CartoDB Positron")
+
+    if show_zip_boundaries:
+        geojson_file = ensure_zip_geojson(geojson_path)
+        with geojson_file.open(encoding="utf-8") as handle:
+            geojson = json.load(handle)
+        folium.GeoJson(
+            geojson,
+            style_function=lambda _feature: {
+                "fillColor": "#f0f0f0",
+                "color": "#9e9e9e",
+                "weight": 1,
+                "fillOpacity": 0.15,
+            },
+        ).add_to(folium_map)
+
+    for _, row in dock_stats.iterrows():
+        flights = int(row["flights"])
+        color = _ratio_to_color(float(flights), vmin, vmax)
+        zip_label = row["zip_code"] if pd.notna(row["zip_code"]) else "N/A"
+        popup_html = f"""
+        <div style="font-size: 13px; min-width: 180px;">
+            <b>{row["short_name"]}</b><br>
+            Flights: <b>{flights}</b><br>
+            Zip: {zip_label}<br>
+            Circle diameter: {circle_diameter_miles:.2f} mi
+        </div>
+        """
+        folium.Circle(
+            location=[float(row["latitude"]), float(row["longitude"])],
+            radius=radius_meters,
+            color="#333333",
+            weight=1.5,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.55,
+            tooltip=f"{row['short_name']}: {flights} flights",
+            popup=folium.Popup(popup_html, max_width=280),
+        ).add_to(folium_map)
+
+    folium_map.get_root().html.add_child(
+        folium.Element(_dock_utilization_legend_html(vmin, vmax, circle_diameter_miles))
+    )
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    folium_map.save(str(output))
+    print(f"Saved dock utilization map to {output}")
+    return folium_map
+
+
 def _geometry_centroid(geometry: dict) -> tuple[float, float] | None:
     if geometry["type"] == "Polygon":
         rings = [geometry["coordinates"][0]]
@@ -243,7 +463,7 @@ def create_zipcode_choropleth_map(
     *,
     geojson_path: Path | str = DEFAULT_GEOJSON_PATH,
     output_path: Path | str = DEFAULT_OUTPUT_HTML,
-    show_zip_labels: bool = True,
+    show_zip_labels: bool = False,
 ) -> folium.Map:
     """Build a Folium map with zip polygons colored by incidents-per-dock ratio."""
     df_lmpd = df_lmpd if df_lmpd is not None else load_lmpd_data()
@@ -323,3 +543,4 @@ def create_zipcode_choropleth_map(
 
 if __name__ == "__main__":
     create_zipcode_choropleth_map()
+    create_dock_utilization_map()
