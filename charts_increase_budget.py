@@ -1,5 +1,5 @@
 """
-Generate Docks Opened vs Budget chart from tables_increase_budget.xlsx.
+Generate Docks Opened vs % Incidents Covered chart from tables_increase_budget.xlsx.
 
 Expected columns (header row):
   - budget
@@ -8,8 +8,11 @@ Expected columns (header row):
   - MetroSafe docks opened
   - JCPS docks opened
 
+X-axis: docks opened. A second axis below shows the budget at each docks value.
+Y-axis: percentage of incidents covered.
+
 If a second table starts at column G, also generate a comparison line chart
-(no bars) for both scenarios.
+for both scenarios.
 """
 from __future__ import annotations
 
@@ -19,24 +22,20 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 from matplotlib.ticker import MultipleLocator
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_INPUT = PROJECT_ROOT / "tables_increase_budget.xlsx"
-DEFAULT_OUTPUT = PROJECT_ROOT / "output" / "figures" / "docks_opened_vs_budget.png"
+DEFAULT_OUTPUT = PROJECT_ROOT / "output" / "figures" / "docks_opened_vs_coverage.png"
 DEFAULT_COMPARISON_OUTPUT = (
-    PROJECT_ROOT / "output" / "figures" / "docks_opened_vs_budget_comparison.png"
+    PROJECT_ROOT / "output" / "figures" / "docks_opened_vs_coverage_comparison.png"
 )
 
-TOTAL_LINE_COLOR = "#1a7f37"
-METROSAFE_COLOR = "#4caf50"
-JCPS_COLOR = "#1f77b4"
-COVERAGE_LINE_COLOR = "#ff7f0e"
+COVERAGE_LINE_COLOR = "#1a7f37"
 COMPARISON_FREE_COLOR = "#1a7f37"
 COMPARISON_PREF_COLOR = "#ff7f0e"
 FIG_SIZE = (12, 7)
-BAR_WIDTH = 0.15
+BUDGET_AXIS_OFFSET = 42
 
 # Excel column G is 0-indexed column 6.
 SECOND_TABLE_START_COL = 6
@@ -113,7 +112,7 @@ def _parse_table_block(block: pd.DataFrame) -> pd.DataFrame:
         }
     )
     chart_df = chart_df.dropna(subset=["budget", "coverage", "total", "metrosafe", "jcps"])
-    chart_df = chart_df.sort_values("budget").reset_index(drop=True)
+    chart_df = chart_df.sort_values("total").reset_index(drop=True)
 
     if chart_df.empty:
         raise ValueError("No valid numeric rows found in table block")
@@ -165,24 +164,20 @@ def load_chart_data(input_path: Path | str = DEFAULT_INPUT) -> pd.DataFrame:
     return primary
 
 
-def _y_axis_max(total_values: pd.Series, default_max: int = 12) -> int:
-    data_max = int(total_values.max())
-    if data_max <= default_max:
-        return default_max
-    return data_max + (1 if data_max % 2 == 0 else 0)
-
-
 def _format_coverage_label(cov: float) -> str:
     return f"{cov:.0f}%" if cov == int(cov) else f"{cov:.1f}%"
+
+
+def _format_budget_label(budget: float) -> str:
+    return f"{budget:.0f}" if budget == int(budget) else f"{budget:g}"
 
 
 def _annotate_coverage(
     ax: plt.Axes,
     x,
     y,
-    coverage,
-    color: str,
     *,
+    color: str,
     xytext: tuple[float, float] = (0, 8),
     ha: str = "center",
     va: str = "bottom",
@@ -191,7 +186,7 @@ def _annotate_coverage(
     overlap_ha: str | None = None,
     overlap_va: str | None = None,
 ) -> None:
-    for xi, yi, cov in zip(x, y, coverage):
+    for xi, yi in zip(x, y):
         point = (float(xi), float(yi))
         if overlap_points is not None and point in overlap_points and overlap_xytext is not None:
             offset = overlap_xytext
@@ -202,7 +197,7 @@ def _annotate_coverage(
             align = ha
             valign = va
         ax.annotate(
-            _format_coverage_label(cov),
+            _format_coverage_label(yi),
             (xi, yi),
             textcoords="offset points",
             xytext=offset,
@@ -214,27 +209,70 @@ def _annotate_coverage(
 
 
 def _overlapping_xy_points(df_a: pd.DataFrame, df_b: pd.DataFrame) -> set[tuple[float, float]]:
-    """Return (x, y) points that appear in both series (same budget and total docks)."""
-    points_a = {(float(x), float(y)) for x, y in zip(df_a["budget"], df_a["total"])}
-    points_b = {(float(x), float(y)) for x, y in zip(df_b["budget"], df_b["total"])}
+    """Return (x, y) points that appear in both series (same docks and coverage)."""
+    points_a = {(float(x), float(y)) for x, y in zip(df_a["total"], df_a["coverage"])}
+    points_b = {(float(x), float(y)) for x, y in zip(df_b["total"], df_b["coverage"])}
     return points_a & points_b
+
+
+def _docks_budget_pairs(*dfs: pd.DataFrame) -> list[tuple[float, float]]:
+    """
+    Unique (docks_opened, budget) pairs for the secondary budget axis.
+
+    When the same docks value maps to more than one budget across tables,
+    keep the first occurrence after sorting by docks.
+    """
+    pairs: dict[float, float] = {}
+    for df in dfs:
+        for docks, budget in zip(df["total"], df["budget"]):
+            docks_f = float(docks)
+            if docks_f not in pairs:
+                pairs[docks_f] = float(budget)
+    return sorted(pairs.items(), key=lambda item: item[0])
+
+
+def _add_budget_axis(
+    ax: plt.Axes,
+    docks_budget: list[tuple[float, float]],
+    *,
+    offset: float = BUDGET_AXIS_OFFSET,
+) -> plt.Axes:
+    """Add a second x-axis below docks opened, labeled with budget at each tick."""
+    docks = [d for d, _ in docks_budget]
+    budgets = [b for _, b in docks_budget]
+
+    ax_budget = ax.twiny()
+    ax_budget.set_xlim(ax.get_xlim())
+    ax_budget.set_xticks(docks)
+    ax_budget.set_xticklabels([_format_budget_label(b) for b in budgets])
+    ax_budget.xaxis.set_ticks_position("bottom")
+    ax_budget.xaxis.set_label_position("bottom")
+    ax_budget.spines["top"].set_visible(False)
+    ax_budget.spines["bottom"].set_position(("outward", offset))
+    ax_budget.set_xlabel("Budget (docks)")
+    return ax_budget
 
 
 def _style_axes(
     ax: plt.Axes,
     *,
-    ymax: float,
     title: str,
-    xmax: float = 10,
+    xmax: float,
+    ymax: float = 105,
 ) -> None:
     ax.set_xlim(0, xmax)
     ax.set_ylim(0, ymax)
     ax.xaxis.set_major_locator(MultipleLocator(1))
-    ax.yaxis.set_major_locator(MultipleLocator(1))
-    ax.set_xlabel("Budget (docks)")
-    ax.set_ylabel("Docks Opened")
+    ax.yaxis.set_major_locator(MultipleLocator(10))
+    ax.set_xlabel("Docks opened")
+    ax.set_ylabel("Incidents covered (%)")
     ax.set_title(title)
     ax.grid(axis="y", linestyle="--", alpha=0.35, zorder=0)
+
+
+def _draw_docks_guides(ax: plt.Axes, docks: list[float]) -> None:
+    for d in docks:
+        ax.axvline(d, color="gray", linestyle="--", linewidth=0.9, alpha=0.35, zorder=0)
 
 
 def _save_or_show(fig: plt.Figure, output_path: Path | str | None, show: bool) -> None:
@@ -249,105 +287,79 @@ def _save_or_show(fig: plt.Figure, output_path: Path | str | None, show: bool) -
         plt.close(fig)
 
 
-def plot_docks_opened_vs_budget(
+def plot_docks_opened_vs_coverage(
     chart_df: pd.DataFrame,
     *,
-    title: str = "Docks Opened vs Budget",
+    title: str = "Docks Opened vs Percentage of Incidents Covered",
     output_path: Path | str | None = DEFAULT_OUTPUT,
     show: bool = False,
 ) -> plt.Figure:
-    x = chart_df["budget"].to_numpy()
-    coverage = chart_df["coverage"].to_numpy()
-    metrosafe = chart_df["metrosafe"].to_numpy()
-    jcps = chart_df["jcps"].to_numpy()
-    total = chart_df["total"].to_numpy()
+    x = chart_df["total"].to_numpy()
+    y = chart_df["coverage"].to_numpy()
+    docks_budget = _docks_budget_pairs(chart_df)
 
     fig, ax = plt.subplots(figsize=FIG_SIZE)
 
-    ax.bar(
-        x,
-        metrosafe,
-        width=BAR_WIDTH,
-        color=METROSAFE_COLOR,
-        edgecolor="white",
-        linewidth=0.8,
-        label="MetroSafe docks opened",
-        zorder=2,
-    )
-    ax.bar(
-        x,
-        jcps,
-        width=BAR_WIDTH,
-        bottom=metrosafe,
-        color=JCPS_COLOR,
-        edgecolor="white",
-        linewidth=0.8,
-        label="JCPS docks opened",
-        zorder=2,
-    )
     ax.plot(
         x,
-        total,
-        color=TOTAL_LINE_COLOR,
+        y,
+        color=COVERAGE_LINE_COLOR,
         linewidth=2.5,
         marker="o",
         markersize=7,
-        markerfacecolor=TOTAL_LINE_COLOR,
+        markerfacecolor=COVERAGE_LINE_COLOR,
         markeredgecolor="white",
         markeredgewidth=1.2,
-        label="Total docks opened",
+        label="Incidents covered (%)",
         zorder=4,
     )
-    _annotate_coverage(ax, x, total, coverage, COVERAGE_LINE_COLOR)
+    _annotate_coverage(ax, x, y, color=COVERAGE_LINE_COLOR)
 
-    xmax = float(chart_df["budget"].max()) + 0.5
-    _style_axes(ax, ymax=_y_axis_max(chart_df["total"]), xmax=xmax, title=title)
+    xmax = float(chart_df["total"].max()) + 0.5
+    _style_axes(ax, xmax=xmax, title=title)
+    _draw_docks_guides(ax, [d for d, _ in docks_budget])
+    _add_budget_axis(ax, docks_budget)
 
     legend_handles = [
         Line2D(
             [0],
             [0],
-            color=TOTAL_LINE_COLOR,
+            color=COVERAGE_LINE_COLOR,
             linewidth=2.5,
             marker="o",
             markersize=7,
-            label="Total docks opened",
-        ),
-        Patch(facecolor=METROSAFE_COLOR, edgecolor="white", label="MetroSafe docks opened"),
-        Patch(facecolor=JCPS_COLOR, edgecolor="white", label="JCPS docks opened"),
-        Line2D(
-            [0],
-            [0],
-            linestyle="None",
-            marker=None,
-            color=COVERAGE_LINE_COLOR,
             label="Incidents covered (%)",
         ),
     ]
-    legend = ax.legend(handles=legend_handles, loc="upper left", framealpha=0.95)
-    legend.get_texts()[-1].set_color(COVERAGE_LINE_COLOR)
+    ax.legend(handles=legend_handles, loc="lower right", framealpha=0.95)
+    fig.subplots_adjust(bottom=0.18)
     plt.tight_layout()
 
     _save_or_show(fig, output_path, show)
     return fig
 
 
+# Backward-compatible alias.
+plot_docks_opened_vs_budget = plot_docks_opened_vs_coverage
+
+
 def plot_docks_opened_comparison(
     free_df: pd.DataFrame,
     preference_df: pd.DataFrame,
     *,
-    title: str = "Docks Opened vs Budget",
+    title: str = "Docks Opened vs Percentage of Incidents Covered",
     output_path: Path | str | None = DEFAULT_COMPARISON_OUTPUT,
     show: bool = False,
 ) -> plt.Figure:
     """
-    Line-only comparison chart for two side-by-side Excel tables.
+    Line comparison chart for two side-by-side Excel tables.
 
     - Column A table  -> "Open docks freely"
     - Column G table  -> "Open MetroSafe docks first"
     """
     fig, ax = plt.subplots(figsize=FIG_SIZE)
     overlap_points = _overlapping_xy_points(free_df, preference_df)
+    docks_budget = _docks_budget_pairs(free_df, preference_df)
 
     series = [
         (
@@ -371,9 +383,8 @@ def plot_docks_opened_comparison(
     ]
 
     for df, color, label, markersize, overlap_xytext, overlap_ha, overlap_va in series:
-        x = df["budget"].to_numpy()
-        y = df["total"].to_numpy()
-        coverage = df["coverage"].to_numpy()
+        x = df["total"].to_numpy()
+        y = df["coverage"].to_numpy()
         ax.plot(
             x,
             y,
@@ -391,23 +402,18 @@ def plot_docks_opened_comparison(
             ax,
             x,
             y,
-            coverage,
-            color,
+            color=color,
             overlap_points=overlap_points,
             overlap_xytext=overlap_xytext,
             overlap_ha=overlap_ha,
             overlap_va=overlap_va,
         )
 
-    all_totals = pd.concat([free_df["total"], preference_df["total"]], ignore_index=True)
-    budgets = sorted(set(free_df["budget"].tolist()) | set(preference_df["budget"].tolist()))
-    # Extend one step past the data maxima so the last point is not flush with the edge.
-    xmax = float(max(budgets)) + 0.5
-    ymax = float(all_totals.max()) + 1
-    _style_axes(ax, ymax=ymax, xmax=xmax, title=title)
-
-    for b in budgets:
-        ax.axvline(b, color="gray", linestyle="--", linewidth=0.9, alpha=0.35, zorder=0)
+    all_docks = pd.concat([free_df["total"], preference_df["total"]], ignore_index=True)
+    xmax = float(all_docks.max()) + 0.5
+    _style_axes(ax, xmax=xmax, title=title)
+    _draw_docks_guides(ax, [d for d, _ in docks_budget])
+    _add_budget_axis(ax, docks_budget)
 
     legend_handles = [
         Line2D(
@@ -429,7 +435,8 @@ def plot_docks_opened_comparison(
             label="Open MetroSafe docks first",
         ),
     ]
-    ax.legend(handles=legend_handles, loc="upper left", framealpha=0.95)
+    ax.legend(handles=legend_handles, loc="lower right", framealpha=0.95)
+    fig.subplots_adjust(bottom=0.18)
     plt.tight_layout()
 
     _save_or_show(fig, output_path, show)
@@ -437,7 +444,9 @@ def plot_docks_opened_comparison(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Plot Docks Opened vs Budget from Excel.")
+    parser = argparse.ArgumentParser(
+        description="Plot Docks Opened vs % Incidents Covered from Excel."
+    )
     parser.add_argument(
         "--input",
         type=Path,
@@ -463,7 +472,7 @@ def main() -> None:
     args = parser.parse_args()
 
     primary_df, secondary_df = load_chart_tables(args.input)
-    plot_docks_opened_vs_budget(primary_df, output_path=args.output, show=args.show)
+    plot_docks_opened_vs_coverage(primary_df, output_path=args.output, show=args.show)
     print(f"Loaded {len(primary_df)} rows (primary table) from {args.input}")
     print(f"Chart saved to {args.output}")
 
