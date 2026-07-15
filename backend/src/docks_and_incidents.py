@@ -169,10 +169,16 @@ def get_docks(excel_file_path):
 def get_incidents(excel_file_path):
     incidents = []
     incidents_data = pd.read_excel(excel_file_path)
+    skipped = 0
     for index, row in incidents_data.iterrows():
-        incident = Incident(row['name'], row['latitude'], row['longitude'], row['date'])
+        if pd.isna(row["latitude"]) or pd.isna(row["longitude"]):
+            skipped += 1
+            continue
+        incident = Incident(row["name"], row["latitude"], row["longitude"], row["date"])
         incidents.append(incident)
     print(f"Incidents created: {len(incidents)}")
+    if skipped:
+        print(f"Incidents skipped (missing coordinates): {skipped}")
     return incidents
 
 def get_priority_dock_names(excel_file_path):
