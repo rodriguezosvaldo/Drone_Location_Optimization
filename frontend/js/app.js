@@ -9,6 +9,12 @@ const COMPARE_SCENARIOS = [
   { key: "s2", label: "Scenario 2" },
 ];
 
+/** Latest completed optimization payload per compare scenario (s1 / s2). */
+const compareResults = {
+  s1: null,
+  s2: null,
+};
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -337,6 +343,9 @@ function showCompareCharts(scenarioKey, data) {
   const chartSummary = $(`cmp-${scenarioKey}-chart-summary`);
   if (!chartImg || !chartPlaceholder || !chartSummary) return;
 
+  compareResults[scenarioKey] = data;
+  updateCompareChartsButton();
+
   const outputs = data.outputs || [];
   const chartPath = outputs.find((path) => path.endsWith(".png") && !path.includes("dock_efficiency"))
     || outputs.find((path) => path.endsWith(".png"));
@@ -380,11 +389,113 @@ function clearCompareCharts(scenarioKey) {
   const chartSummary = $(`cmp-${scenarioKey}-chart-summary`);
   if (!chartImg || !chartPlaceholder || !chartSummary) return;
 
+  compareResults[scenarioKey] = null;
+  updateCompareChartsButton();
+
   chartImg.src = "";
   chartImg.classList.add("hidden");
   chartSummary.innerHTML = "";
   chartSummary.classList.add("hidden");
   chartPlaceholder.classList.remove("hidden");
+}
+
+function scenarioHasComparableSteps(data) {
+  if (!data) return false;
+
+  const usedIncreaseOption = Boolean(data.increase_budget) || Boolean(data.increase_response_time);
+  if (!data.iterative || !usedIncreaseOption) return false;
+
+  const steps = data.steps?.length ? data.steps : [];
+  // Iterative budget/response-time runs need a full series, not a single point.
+  return steps.length >= 2;
+}
+
+function updateCompareChartsButton() {
+  const btn = $("compare-charts-btn");
+  if (!btn) return;
+
+  const s1Ready = scenarioHasComparableSteps(compareResults.s1);
+  const s2Ready = scenarioHasComparableSteps(compareResults.s2);
+  const ready = s1Ready && s2Ready;
+
+  btn.disabled = !ready;
+  if (ready) {
+    btn.title = "Overlay both scenario charts in one view";
+  } else if (!compareResults.s1 && !compareResults.s2) {
+    btn.title = "Run Increase budget or Increase response time on both scenarios";
+  } else if (!s1Ready || !s2Ready) {
+    btn.title = "Both scenarios need Increase budget or Increase response time results";
+  } else {
+    btn.title = "Waiting for both scenario results";
+  }
+}
+
+function extractCompareSteps(data) {
+  if (!data) return [];
+  const steps = data.steps?.length ? data.steps : (data.result ? [data.result] : []);
+  return steps.map((step) => ({
+    k: step.k,
+    amount_incidents_covered: step.amount_incidents_covered,
+    coverage_rate: step.coverage_rate,
+    amount_selected_docks: step.amount_selected_docks,
+    response_time_minutes: step.response_time_minutes ?? null,
+    target_percentage: step.target_percentage ?? null,
+  }));
+}
+
+function openCompareChartsModal(chartPath) {
+  const modal = $("compare-charts-modal");
+  const img = $("compare-charts-combined-img");
+  if (!modal || !img) return;
+  img.src = `/api/outputs/file/${chartPath.replace(/^\//, "")}`;
+  modal.classList.remove("hidden");
+}
+
+function closeCompareChartsModal() {
+  const modal = $("compare-charts-modal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+}
+
+async function runCompareCharts() {
+  const dataA = compareResults.s1;
+  const dataB = compareResults.s2;
+  if (!scenarioHasComparableSteps(dataA) || !scenarioHasComparableSteps(dataB)) {
+    showToast(
+      "Compare Charts requires Increase budget or Increase response time results for both scenarios.",
+      "error",
+    );
+    return;
+  }
+
+  const btn = $("compare-charts-btn");
+  if (btn) btn.disabled = true;
+
+  try {
+    const payload = {
+      steps_a: extractCompareSteps(dataA),
+      steps_b: extractCompareSteps(dataB),
+      label_a: "Scenario 1",
+      label_b: "Scenario 2",
+      scenario_a: dataA.scenario || null,
+      scenario_b: dataB.scenario || null,
+      increase_budget_a: Boolean(dataA.increase_budget),
+      increase_response_time_a: Boolean(dataA.increase_response_time),
+      increase_budget_b: Boolean(dataB.increase_budget),
+      increase_response_time_b: Boolean(dataB.increase_response_time),
+    };
+    const result = await api("/api/optimize/compare-charts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    openCompareChartsModal(result.chart);
+    loadOutputs();
+  } catch (error) {
+    showToast(error.message || "Failed to compare charts.", "error");
+  } finally {
+    updateCompareChartsButton();
+  }
 }
 
 function resetOptimizationPanel(ctx = optimizationContext()) {
@@ -444,6 +555,8 @@ function resetComparePanel() {
   $("compare-peak-day-toggle").checked = false;
   $("compare-generate-map-btn").disabled = false;
   COMPARE_SCENARIOS.forEach(({ key }) => resetOptimizationPanel(optimizationContext(key)));
+  closeCompareChartsModal();
+  updateCompareChartsButton();
   document.querySelectorAll("#section-compare .tooltip-popup").forEach((el) => el.classList.add("hidden"));
   refreshStatus();
 }
@@ -1096,6 +1209,12 @@ function bindEvents() {
   $("delete-all-outputs-btn").addEventListener("click", deleteAllOutputs);
   $("optimization-refresh-btn").addEventListener("click", () => resetOptimizationPanel(optimizationContext()));
   $("compare-refresh-btn").addEventListener("click", resetComparePanel);
+  $("compare-charts-btn").addEventListener("click", runCompareCharts);
+  $("compare-charts-modal-close").addEventListener("click", closeCompareChartsModal);
+  $("compare-charts-modal-backdrop").addEventListener("click", closeCompareChartsModal);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeCompareChartsModal();
+  });
   document.querySelectorAll('input[name="percentage-mode"]').forEach((input) => {
     input.addEventListener("change", () => updatePercentageModePanels(optimizationContext()));
     input.addEventListener("click", () => updatePercentageModePanels(optimizationContext()));
@@ -1111,6 +1230,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupTooltips();
   bindEvents();
   updatePercentageModePanels(optimizationContext());
+  updateCompareChartsButton();
   updateWorkspaceForSection("data");
   refreshStatus();
 });

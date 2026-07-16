@@ -168,6 +168,51 @@ def optimize_run(payload: OptimizeRequest):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+class CompareScenarioStep(BaseModel):
+    k: int | float
+    amount_incidents_covered: int | float
+    coverage_rate: float
+    amount_selected_docks: int | float
+    response_time_minutes: float | None = None
+    target_percentage: float | None = None
+
+
+class CompareChartsRequest(BaseModel):
+    steps_a: list[CompareScenarioStep] = Field(..., min_length=1)
+    steps_b: list[CompareScenarioStep] = Field(..., min_length=1)
+    label_a: str = "Scenario 1"
+    label_b: str = "Scenario 2"
+    scenario_a: str | None = None
+    scenario_b: str | None = None
+    increase_budget_a: bool = False
+    increase_response_time_a: bool = False
+    increase_budget_b: bool = False
+    increase_response_time_b: bool = False
+    chart_mode: Literal["budget", "response_time", "incidents_vs_k"] | None = None
+
+
+@router.post("/compare-charts")
+def compare_charts(payload: CompareChartsRequest):
+    try:
+        return optimization_service.compare_scenario_charts(
+            steps_a=[step.model_dump() for step in payload.steps_a],
+            steps_b=[step.model_dump() for step in payload.steps_b],
+            label_a=payload.label_a,
+            label_b=payload.label_b,
+            scenario_a=payload.scenario_a,
+            scenario_b=payload.scenario_b,
+            increase_budget_a=payload.increase_budget_a,
+            increase_response_time_a=payload.increase_response_time_a,
+            increase_budget_b=payload.increase_budget_b,
+            increase_response_time_b=payload.increase_response_time_b,
+            chart_mode=payload.chart_mode,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.get("/jobs")
 def list_jobs():
     return {"jobs": job_manager.list_jobs()}

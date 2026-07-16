@@ -14,6 +14,7 @@ from src.docks_and_incidents import (
 )
 from src.optimization_model import MaximizeIncidentsCovered
 from visualizations.charts_optimization_results import (
+    chart_compare_two_scenarios,
     chart_dock_efficiency_vs_docks,
     chart_incidents_covered_vs_k,
     chart_incidents_covered_vs_percentage,
@@ -529,4 +530,78 @@ def run_optimization(
         "steps": [_serialize_result(step) for step in results_list],
         "outputs": outputs,
         "map": outputs[0],
+    }
+
+
+def _infer_compare_chart_mode(
+    *,
+    increase_budget_a: bool,
+    increase_response_time_a: bool,
+    increase_budget_b: bool,
+    increase_response_time_b: bool,
+    steps_a: list[dict],
+    steps_b: list[dict],
+) -> str:
+    """Pick axes that match the standalone comparison scripts when possible."""
+    both_response = increase_response_time_a and increase_response_time_b
+    both_budget = increase_budget_a and increase_budget_b
+    has_response_values = all(
+        step.get("response_time_minutes") is not None
+        for step in (*steps_a, *steps_b)
+    )
+
+    if both_response and not (increase_budget_a or increase_budget_b) and has_response_values:
+        return "response_time"
+    if both_budget and not (increase_response_time_a or increase_response_time_b):
+        return "budget"
+    if both_response and has_response_values and not both_budget:
+        return "response_time"
+    if both_budget:
+        return "budget"
+    return "incidents_vs_k"
+
+
+def compare_scenario_charts(
+    *,
+    steps_a: list[dict],
+    steps_b: list[dict],
+    label_a: str = "Scenario 1",
+    label_b: str = "Scenario 2",
+    scenario_a: str | None = None,
+    scenario_b: str | None = None,
+    increase_budget_a: bool = False,
+    increase_response_time_a: bool = False,
+    increase_budget_b: bool = False,
+    increase_response_time_b: bool = False,
+    chart_mode: str | None = None,
+) -> dict[str, Any]:
+    """Generate a combined comparison chart for two scenario result series."""
+    if not steps_a or not steps_b:
+        raise ValueError("Both scenarios must include optimization steps to compare.")
+
+    mode = chart_mode or _infer_compare_chart_mode(
+        increase_budget_a=increase_budget_a,
+        increase_response_time_a=increase_response_time_a,
+        increase_budget_b=increase_budget_b,
+        increase_response_time_b=increase_response_time_b,
+        steps_a=steps_a,
+        steps_b=steps_b,
+    )
+    if mode not in {"budget", "response_time", "incidents_vs_k"}:
+        raise ValueError("chart_mode must be budget, response_time, or incidents_vs_k.")
+
+    chart_path = chart_compare_two_scenarios(
+        steps_a,
+        steps_b,
+        label_a=label_a,
+        label_b=label_b,
+        scenario_a=scenario_a,
+        scenario_b=scenario_b,
+        chart_mode=mode,
+    )
+    relative = _relative_output_path(chart_path)
+    return {
+        "chart": relative,
+        "chart_mode": mode,
+        "outputs": [relative],
     }

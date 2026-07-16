@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=17">
+  <link rel="stylesheet" href="css/style.css?v=18">
 </head>
 <body>
   <div class="app">
@@ -296,37 +296,46 @@
       </div>
 
       <div class="compare-workspace hidden" id="compare-workspace">
-        <div class="compare-column" data-scenario="s1">
-          <h3 class="compare-column-title">Scenario 1</h3>
-          <div class="compare-panel compare-map-panel">
-            <div class="compare-placeholder" id="cmp-s1-map-placeholder">
-              <span class="map-placeholder-text">Map</span>
+        <div class="compare-columns">
+          <div class="compare-column" data-scenario="s1">
+            <h3 class="compare-column-title">Scenario 1</h3>
+            <div class="compare-panel compare-map-panel">
+              <div class="compare-placeholder" id="cmp-s1-map-placeholder">
+                <span class="map-placeholder-text">Map</span>
+              </div>
+              <iframe id="cmp-s1-map-frame" class="hidden" title="Scenario 1 map"></iframe>
             </div>
-            <iframe id="cmp-s1-map-frame" class="hidden" title="Scenario 1 map"></iframe>
+            <div class="compare-panel compare-chart-panel">
+              <div class="compare-placeholder" id="cmp-s1-chart-placeholder">
+                <span class="map-placeholder-text">Chart</span>
+              </div>
+              <img id="cmp-s1-chart-img" class="compare-chart-img hidden" alt="Scenario 1 chart">
+              <div class="compare-chart-summary hidden" id="cmp-s1-chart-summary"></div>
+            </div>
           </div>
-          <div class="compare-panel compare-chart-panel">
-            <div class="compare-placeholder" id="cmp-s1-chart-placeholder">
-              <span class="map-placeholder-text">Chart</span>
+          <div class="compare-column" data-scenario="s2">
+            <h3 class="compare-column-title">Scenario 2</h3>
+            <div class="compare-panel compare-map-panel">
+              <div class="compare-placeholder" id="cmp-s2-map-placeholder">
+                <span class="map-placeholder-text">Map</span>
+              </div>
+              <iframe id="cmp-s2-map-frame" class="hidden" title="Scenario 2 map"></iframe>
             </div>
-            <img id="cmp-s1-chart-img" class="compare-chart-img hidden" alt="Scenario 1 chart">
-            <div class="compare-chart-summary hidden" id="cmp-s1-chart-summary"></div>
+            <div class="compare-panel compare-chart-panel">
+              <div class="compare-placeholder" id="cmp-s2-chart-placeholder">
+                <span class="map-placeholder-text">Chart</span>
+              </div>
+              <img id="cmp-s2-chart-img" class="compare-chart-img hidden" alt="Scenario 2 chart">
+              <div class="compare-chart-summary hidden" id="cmp-s2-chart-summary"></div>
+            </div>
           </div>
         </div>
-        <div class="compare-column" data-scenario="s2">
-          <h3 class="compare-column-title">Scenario 2</h3>
-          <div class="compare-panel compare-map-panel">
-            <div class="compare-placeholder" id="cmp-s2-map-placeholder">
-              <span class="map-placeholder-text">Map</span>
-            </div>
-            <iframe id="cmp-s2-map-frame" class="hidden" title="Scenario 2 map"></iframe>
-          </div>
-          <div class="compare-panel compare-chart-panel">
-            <div class="compare-placeholder" id="cmp-s2-chart-placeholder">
-              <span class="map-placeholder-text">Chart</span>
-            </div>
-            <img id="cmp-s2-chart-img" class="compare-chart-img hidden" alt="Scenario 2 chart">
-            <div class="compare-chart-summary hidden" id="cmp-s2-chart-summary"></div>
-          </div>
+        <div class="compare-charts-actions">
+          <div class="compare-charts-actions-line" aria-hidden="true"></div>
+          <button type="button" class="btn outline" id="compare-charts-btn" disabled title="Run Increase budget or Increase response time on both scenarios">
+            Compare Charts
+          </button>
+          <div class="compare-charts-actions-line" aria-hidden="true"></div>
         </div>
       </div>
     </main>
@@ -334,7 +343,20 @@
     <p class="canvas-hint">To move the canvas, hold scroll wheel or Space while dragging.</p>
   </div>
 
+  <div class="compare-charts-modal hidden" id="compare-charts-modal" role="dialog" aria-modal="true" aria-labelledby="compare-charts-modal-title">
+    <div class="compare-charts-modal-backdrop" id="compare-charts-modal-backdrop"></div>
+    <div class="compare-charts-modal-panel">
+      <div class="compare-charts-modal-header">
+        <h3 id="compare-charts-modal-title">Combined Chart Comparison</h3>
+        <button type="button" class="btn ghost small" id="compare-charts-modal-close" aria-label="Close">Close</button>
+      </div>
+      <div class="compare-charts-modal-body">
+        <img id="compare-charts-combined-img" class="compare-charts-combined-img" alt="Combined scenario comparison chart">
+      </div>
+    </div>
+  </div>
+
   <div class="toast hidden" id="toast"></div>
-  <script src="js/app.js?v=19"></script>
+  <script src="js/app.js?v=21"></script>
 </body>
 </html>

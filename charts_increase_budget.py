@@ -8,7 +8,7 @@ Expected columns (header row):
   - MetroSafe docks opened
   - JCPS docks opened
 
-X-axis: docks opened. A second axis below shows the budget at each docks value.
+X-axis: docks opened.
 Y-axis: percentage of incidents covered.
 
 If a second table starts at column G, also generate a comparison line chart
@@ -35,7 +35,6 @@ COVERAGE_LINE_COLOR = "#1a7f37"
 COMPARISON_FREE_COLOR = "#1a7f37"
 COMPARISON_PREF_COLOR = "#ff7f0e"
 FIG_SIZE = (12, 7)
-BUDGET_AXIS_OFFSET = 42
 
 # Excel column G is 0-indexed column 6.
 SECOND_TABLE_START_COL = 6
@@ -165,11 +164,7 @@ def load_chart_data(input_path: Path | str = DEFAULT_INPUT) -> pd.DataFrame:
 
 
 def _format_coverage_label(cov: float) -> str:
-    return f"{cov:.0f}%" if cov == int(cov) else f"{cov:.1f}%"
-
-
-def _format_budget_label(budget: float) -> str:
-    return f"{budget:.0f}" if budget == int(budget) else f"{budget:g}"
+    return f"{cov:.2f}%"
 
 
 def _annotate_coverage(
@@ -217,7 +212,7 @@ def _overlapping_xy_points(df_a: pd.DataFrame, df_b: pd.DataFrame) -> set[tuple[
 
 def _docks_budget_pairs(*dfs: pd.DataFrame) -> list[tuple[float, float]]:
     """
-    Unique (docks_opened, budget) pairs for the secondary budget axis.
+    Unique (docks_opened, budget) pairs for vertical guide lines.
 
     When the same docks value maps to more than one budget across tables,
     keep the first occurrence after sorting by docks.
@@ -229,28 +224,6 @@ def _docks_budget_pairs(*dfs: pd.DataFrame) -> list[tuple[float, float]]:
             if docks_f not in pairs:
                 pairs[docks_f] = float(budget)
     return sorted(pairs.items(), key=lambda item: item[0])
-
-
-def _add_budget_axis(
-    ax: plt.Axes,
-    docks_budget: list[tuple[float, float]],
-    *,
-    offset: float = BUDGET_AXIS_OFFSET,
-) -> plt.Axes:
-    """Add a second x-axis below docks opened, labeled with budget at each tick."""
-    docks = [d for d, _ in docks_budget]
-    budgets = [b for _, b in docks_budget]
-
-    ax_budget = ax.twiny()
-    ax_budget.set_xlim(ax.get_xlim())
-    ax_budget.set_xticks(docks)
-    ax_budget.set_xticklabels([_format_budget_label(b) for b in budgets])
-    ax_budget.xaxis.set_ticks_position("bottom")
-    ax_budget.xaxis.set_label_position("bottom")
-    ax_budget.spines["top"].set_visible(False)
-    ax_budget.spines["bottom"].set_position(("outward", offset))
-    ax_budget.set_xlabel("Budget (docks)")
-    return ax_budget
 
 
 def _style_axes(
@@ -318,7 +291,6 @@ def plot_docks_opened_vs_coverage(
     xmax = float(chart_df["total"].max()) + 0.5
     _style_axes(ax, xmax=xmax, title=title)
     _draw_docks_guides(ax, [d for d, _ in docks_budget])
-    _add_budget_axis(ax, docks_budget)
 
     legend_handles = [
         Line2D(
@@ -332,7 +304,6 @@ def plot_docks_opened_vs_coverage(
         ),
     ]
     ax.legend(handles=legend_handles, loc="lower right", framealpha=0.95)
-    fig.subplots_adjust(bottom=0.18)
     plt.tight_layout()
 
     _save_or_show(fig, output_path, show)
@@ -382,7 +353,7 @@ def plot_docks_opened_comparison(
         ),
     ]
 
-    for df, color, label, markersize, overlap_xytext, overlap_ha, overlap_va in series:
+    for df, color, label, markersize, xytext, ha, va in series:
         x = df["total"].to_numpy()
         y = df["coverage"].to_numpy()
         ax.plot(
@@ -403,17 +374,21 @@ def plot_docks_opened_comparison(
             x,
             y,
             color=color,
+            xytext=xytext,
+            ha=ha,
+            va=va,
             overlap_points=overlap_points,
-            overlap_xytext=overlap_xytext,
-            overlap_ha=overlap_ha,
-            overlap_va=overlap_va,
+            # When both series share a point, nudge free labels further up and
+            # preference labels further down so the two percentage strings don't collide.
+            overlap_xytext=(0, 18) if color == COMPARISON_FREE_COLOR else (0, -22),
+            overlap_ha=ha,
+            overlap_va=va,
         )
 
     all_docks = pd.concat([free_df["total"], preference_df["total"]], ignore_index=True)
     xmax = float(all_docks.max()) + 0.5
     _style_axes(ax, xmax=xmax, title=title)
     _draw_docks_guides(ax, [d for d, _ in docks_budget])
-    _add_budget_axis(ax, docks_budget)
 
     legend_handles = [
         Line2D(
@@ -436,7 +411,6 @@ def plot_docks_opened_comparison(
         ),
     ]
     ax.legend(handles=legend_handles, loc="lower right", framealpha=0.95)
-    fig.subplots_adjust(bottom=0.18)
     plt.tight_layout()
 
     _save_or_show(fig, output_path, show)

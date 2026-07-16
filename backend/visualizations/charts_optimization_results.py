@@ -9,14 +9,19 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 FIGURES_DIR = BACKEND_ROOT.parent / "output" / "figures"
 FIG_SIZE = (10, 6)
 LINE_COLOR = "#1f77b4"
+COMPARISON_FREE_COLOR = "#1a7f37"
+COMPARISON_PREF_COLOR = "#ff7f0e"
 SCENARIO_LABELS = {
     "no_fixed": "No fixed locations",
     "fixed_metrosafe": "8 MetroSafe docks fixed",
+    "maximize_coverage": "Open docks freely",
+    "priority_docks": "Open MetroSafe docks first",
 }
 
 
@@ -185,6 +190,159 @@ def chart_dock_efficiency_vs_docks(
             fontsize=8,
         )
 
+    plt.tight_layout()
+    fig.savefig(save_path, dpi=150, bbox_inches="tight", facecolor="white")
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+    return save_path
+
+
+def _coverage_pcts(results: list[dict]) -> list[float]:
+    """Normalize coverage to 0–100 percentages for a full series."""
+    rates = [float(r.get("coverage_rate", 0) or 0) for r in results]
+    if rates and max(rates) <= 1.0:
+        return [rate * 100 for rate in rates]
+    return rates
+
+
+def _series_xy(
+    results: list[dict],
+    *,
+    chart_mode: str,
+) -> tuple[list[float], list[float], list[float]]:
+    """Return (x, y, coverage_pct) for a comparison series."""
+    coverages = _coverage_pcts(results)
+    xs: list[float] = []
+    ys: list[float] = []
+    for r, coverage in zip(results, coverages):
+        docks = float(r.get("amount_selected_docks", r.get("k", 0)) or 0)
+        if chart_mode == "response_time":
+            x = float(r.get("response_time_minutes", 0) or 0)
+            y = docks
+        elif chart_mode == "budget":
+            x = docks
+            y = coverage
+        else:
+            x = float(r.get("k", docks) or 0)
+            y = float(_covered_count(r))
+        xs.append(x)
+        ys.append(y)
+    return xs, ys, coverages
+
+
+def _resolve_scenario_label(scenario: str | None, fallback: str) -> str:
+    if not scenario:
+        return fallback
+    return SCENARIO_LABELS.get(scenario, fallback)
+
+
+def chart_compare_two_scenarios(
+    results_a: list[dict],
+    results_b: list[dict],
+    *,
+    label_a: str = "Scenario 1",
+    label_b: str = "Scenario 2",
+    scenario_a: str | None = None,
+    scenario_b: str | None = None,
+    chart_mode: str = "budget",
+    output_path: Path | None = None,
+    show: bool = False,
+) -> Path:
+    """
+    Overlay two optimization result series on one comparison chart.
+
+    chart_mode:
+      - "budget": docks opened (x) vs coverage % (y) — matches charts_increase_budget.py
+      - "response_time": response time (x) vs docks opened (y) — matches charts_increase_response_time.py
+      - "incidents_vs_k": docks budget (x) vs incidents covered (y)
+    """
+    if not results_a or not results_b:
+        raise ValueError("Both scenarios must include at least one result step.")
+
+    resolved_a = _resolve_scenario_label(scenario_a, label_a)
+    resolved_b = _resolve_scenario_label(scenario_b, label_b)
+    if resolved_a == resolved_b:
+        resolved_a = label_a
+        resolved_b = label_b
+
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = output_path or FIGURES_DIR / "optimization_compare_scenarios.png"
+
+    series = [
+        (results_a, COMPARISON_FREE_COLOR, resolved_a, 7),
+        (results_b, COMPARISON_PREF_COLOR, resolved_b, 9),
+    ]
+
+    fig, ax = plt.subplots(figsize=(12, 7))
+    for results, color, label, markersize in series:
+        xs, ys, coverages = _series_xy(results, chart_mode=chart_mode)
+        ax.plot(
+            xs,
+            ys,
+            color=color,
+            linewidth=2.5 if color == COMPARISON_FREE_COLOR else 3.0,
+            marker="o",
+            markersize=markersize,
+            markerfacecolor=color,
+            markeredgecolor="white",
+            markeredgewidth=1.2,
+            label=label,
+            zorder=4,
+        )
+        for x, y, coverage in zip(xs, ys, coverages):
+            if chart_mode in ("budget", "response_time"):
+                text = f"{coverage:.1f}%"
+            else:
+                text = f"{int(y):,}\n({coverage:.1f}%)"
+            ax.annotate(
+                text,
+                (x, y),
+                textcoords="offset points",
+                xytext=(0, 10) if color == COMPARISON_FREE_COLOR else (0, -14),
+                ha="center",
+                va="bottom" if color == COMPARISON_FREE_COLOR else "top",
+                fontsize=8,
+                color=color,
+            )
+
+    if chart_mode == "budget":
+        ax.set_xlabel("Number of docks opened")
+        ax.set_ylabel("Percentage of incidents covered")
+        ax.set_title("Docks Opened vs Percentage of Incidents Covered")
+        ax.set_ylim(0, 105)
+    elif chart_mode == "response_time":
+        ax.set_xlabel("Response time (minutes)")
+        ax.set_ylabel("Number of docks opened")
+        ax.set_title("Docks Opened vs Response Time")
+    else:
+        ax.set_xlabel("Number of docks")
+        ax.set_ylabel("Incidents covered")
+        ax.set_title("Incidents Covered vs Number of Docks — Comparison")
+
+    ax.grid(True, alpha=0.3)
+    legend_handles = [
+        Line2D(
+            [0],
+            [0],
+            color=COMPARISON_FREE_COLOR,
+            linewidth=2.5,
+            marker="o",
+            markersize=7,
+            label=resolved_a,
+        ),
+        Line2D(
+            [0],
+            [0],
+            color=COMPARISON_PREF_COLOR,
+            linewidth=3.0,
+            marker="o",
+            markersize=9,
+            label=resolved_b,
+        ),
+    ]
+    ax.legend(handles=legend_handles, loc="best", framealpha=0.95)
     plt.tight_layout()
     fig.savefig(save_path, dpi=150, bbox_inches="tight", facecolor="white")
     if show:

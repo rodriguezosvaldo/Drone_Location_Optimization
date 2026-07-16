@@ -173,7 +173,7 @@ def _y_axis_max(total_values: pd.Series, default_max: int = 12) -> int:
 
 
 def _format_coverage_label(cov: float) -> str:
-    return f"{cov:.0f}%" if cov == int(cov) else f"{cov:.1f}%"
+    return f"{cov:.2f}%"
 
 
 def _annotate_coverage(ax: plt.Axes, x, y, coverage, color: str) -> None:
@@ -189,12 +189,17 @@ def _annotate_coverage(ax: plt.Axes, x, y, coverage, color: str) -> None:
         )
 
 
+def _x_axis_max(response_times: pd.Series | list[float], padding: float = 0.5) -> float:
+    """Axis upper bound from data, with a small pad so the last point is not flush."""
+    return float(max(response_times)) + padding
+
+
 def _style_axes(
     ax: plt.Axes,
     *,
     ymax: float,
     title: str,
-    xmax: float = 10,
+    xmax: float,
 ) -> None:
     ax.set_xlim(0, xmax)
     ax.set_ylim(0, ymax)
@@ -269,7 +274,12 @@ def plot_docks_opened_vs_response_time(
     )
     _annotate_coverage(ax, x, total, coverage, COVERAGE_LINE_COLOR)
 
-    _style_axes(ax, ymax=_y_axis_max(chart_df["total"]), title=title)
+    _style_axes(
+        ax,
+        ymax=_y_axis_max(chart_df["total"]),
+        xmax=_x_axis_max(chart_df["response_time"]),
+        title=title,
+    )
 
     legend_handles = [
         Line2D(
@@ -344,10 +354,8 @@ def plot_docks_opened_comparison(
     response_times = sorted(
         set(free_df["response_time"].tolist()) | set(preference_df["response_time"].tolist())
     )
-    # Extend one step past the data maxima so the last point is not flush with the edge.
-    xmax = float(max(response_times)) + 0.5
     ymax = float(all_totals.max()) + 1
-    _style_axes(ax, ymax=ymax, xmax=xmax, title=title)
+    _style_axes(ax, ymax=ymax, xmax=_x_axis_max(response_times), title=title)
 
     for rt in response_times:
         ax.axvline(rt, color="gray", linestyle="--", linewidth=0.9, alpha=0.35, zorder=0)
