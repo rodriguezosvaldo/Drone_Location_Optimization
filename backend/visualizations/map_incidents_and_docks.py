@@ -50,13 +50,20 @@ def _add_dock_center_marker(parent, dock, border_color, fill_color, is_priority,
             popup=popup,
         ).add_to(parent)
     else:
-        folium.CircleMarker(
+        folium.Marker(
             location=[dock.latitude, dock.longitude],
-            radius=3,
-            color=border_color,
-            fill=True,
-            fill_color=border_color,
-            fill_opacity=1,
+            icon=folium.DivIcon(
+                html=f"""
+                <div style="text-align: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+                        <polygon points="12,2 22,12 12,22 2,12"
+                                 fill="{border_color}" stroke="{border_color}" stroke-width="1.5"/>
+                    </svg>
+                </div>
+                """,
+                icon_size=(14, 14),
+                icon_anchor=(7, 7),
+            ),
             popup=popup,
         ).add_to(parent)
 
@@ -362,7 +369,7 @@ def create_map(
                 <span style="margin-left: 10px; color:{INCIDENT_UNCOVERED_COLOR};">&#9679;</span> Uncovered incident
             </div>
             <div>
-                <span style="color:{DOCK_COLOR};">&#9679;</span> Dock
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" style="vertical-align: middle;"><polygon points="12,2 22,12 12,22 2,12" fill="{DOCK_COLOR}"/></svg> Dock
                 <span style="margin-left: 10px; display: inline-flex; align-items: center; gap: 4px;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" style="vertical-align: middle;">
                         <path d="M12 3L2 12h3v8h14v-8h3L12 3z"

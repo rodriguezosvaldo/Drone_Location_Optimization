@@ -1,11 +1,12 @@
 """
 Folium maps for MetroSafe dock analysis:
   1. Zip-code choropleth colored by incidents-per-dock ratio
-  2. Dock utilization map colored/sized by flight takeoff counts
+  2. Zip-code heatmap colored by incident count (no docks)
+  3. Dock utilization map colored/sized by flight takeoff counts
 
 Data sources:
   - LOJIC Jefferson County KY ZIP Codes (GeoJSON)
-  - output/clean_and_geocoded_LMPD_data_2025.xlsx
+  - output/Medium_and_High_clean_and_geocoded_LMPD_data_2025_cleaned.xlsx
   - output/docks_JCPS_MetroSafe.xlsx
   - output/clean_and_geocoded_JCPS_schools.xlsx
   - data/Dataflights1.xlsx (dock locations / zip lookup)
@@ -24,13 +25,14 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-DEFAULT_LMPD_PATH = PROJECT_ROOT / "output" / "clean_and_geocoded_LMPD_data_2025.xlsx"
+DEFAULT_LMPD_PATH = PROJECT_ROOT / "output" / "Medium_and_High_clean_and_geocoded_LMPD_data_2025_cleaned.xlsx"
 DEFAULT_DOCKS_PATH = PROJECT_ROOT / "output" / "docks_JCPS_MetroSafe.xlsx"
 DEFAULT_JCPS_PATH = PROJECT_ROOT / "output" / "clean_and_geocoded_JCPS_schools.xlsx"
 DEFAULT_DATAFLIGHTS_PATH = PROJECT_ROOT / "data" / "Dataflights1.xlsx"
 DEFAULT_FLIGHTS_LOG_PATH = PROJECT_ROOT / "data" / "Dataflights.xlsx"
 DEFAULT_GEOJSON_PATH = PROJECT_ROOT / "data" / "geo" / "jefferson_county_zip_codes.geojson"
 DEFAULT_OUTPUT_HTML = PROJECT_ROOT / "output" / "incidents_vs_docks_zipcode_map.html"
+DEFAULT_INCIDENTS_HEATMAP_HTML = PROJECT_ROOT / "output" / "incidents_by_zipcode_heatmap.html"
 DEFAULT_DOCK_UTILIZATION_HTML = PROJECT_ROOT / "output" / "dock_utilization_map.html"
 
 LOJIC_ZIP_GEOJSON_URL = (
@@ -39,8 +41,8 @@ LOJIC_ZIP_GEOJSON_URL = (
 )
 
 LOUISVILLE_CENTER = [38.2527, -85.7585]
-COLOR_LOW = (116, 196, 205)   # light blue (low incidents per dock)
-COLOR_HIGH = (215, 48, 39)     # intense red (high incidents per dock)
+COLOR_LOW = (116, 196, 205)   # light blue (low)
+COLOR_HIGH = (215, 48, 39)     # intense red (high)
 COLOR_INCIDENTS_NO_DOCKS = "#41ab5d"  # green
 COLOR_DOCKS_NO_INCIDENTS = "#ffd92f"  # yellow
 NO_DATA_COLOR = "#d9d9d9"
@@ -139,6 +141,17 @@ def build_zip_ratio_stats(df_lmpd: pd.DataFrame, df_docks: pd.DataFrame) -> pd.D
             }
         )
     return pd.DataFrame(rows)
+
+
+def build_zip_incident_stats(df_lmpd: pd.DataFrame) -> pd.DataFrame:
+    """Incident counts for each zip code."""
+    incidents = _counts_by_zip(df_lmpd)
+    return pd.DataFrame(
+        {
+            "zip_code": incidents.index.astype(str),
+            "incidents": incidents.values.astype(int),
+        }
+    ).sort_values("zip_code").reset_index(drop=True)
 
 
 def _zip_fill_color(incidents: int, docks: int, ratio: float | None, vmin: float, vmax: float) -> str:
@@ -409,6 +422,20 @@ def _attach_stats_to_geojson(geojson: dict, stats: pd.DataFrame) -> dict:
     return enriched
 
 
+def _attach_incident_counts_to_geojson(geojson: dict, stats: pd.DataFrame) -> dict:
+    stats_by_zip = stats.set_index("zip_code")
+    enriched = json.loads(json.dumps(geojson))
+
+    for feature in enriched["features"]:
+        zip_code = str(feature["properties"].get("ZIPCODE", "")).strip()
+        if zip_code in stats_by_zip.index:
+            feature["properties"]["incidents"] = int(stats_by_zip.loc[zip_code, "incidents"])
+        else:
+            feature["properties"]["incidents"] = 0
+
+    return enriched
+
+
 def _legend_html(vmin: float, vmax: float) -> str:
     return f"""
     <div style="
@@ -455,6 +482,75 @@ def _legend_html(vmin: float, vmax: float) -> str:
         </div>
     </div>
     """
+
+
+def _incidents_heatmap_legend_html(vmin: float, vmax: float) -> str:
+    return f"""
+    <div style="
+        position: fixed;
+        bottom: 25px;
+        left: 25px;
+        z-index: 1000;
+        background-color: white;
+        border: 2px solid #666;
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-size: 13px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        max-width: 280px;
+    ">
+        <div style="font-weight: bold; margin-bottom: 8px;">
+            Incidents by zip code
+        </div>
+        <div style="
+            height: 16px;
+            width: 220px;
+            background: linear-gradient(to right, rgb({COLOR_LOW[0]},{COLOR_LOW[1]},{COLOR_LOW[2]}), rgb({COLOR_HIGH[0]},{COLOR_HIGH[1]},{COLOR_HIGH[2]}));
+            border: 1px solid #666;
+            margin-bottom: 6px;
+        "></div>
+        <div style="display: flex; justify-content: space-between; width: 220px;">
+            <span>Fewer<br>{int(vmin)}</span>
+            <span>More<br>{int(vmax)}</span>
+        </div>
+        <div style="margin-top: 8px; color: #555;">
+            Blue = fewer incidents<br>
+            Red = more incidents
+        </div>
+        <div style="margin-top: 6px; color: #777;">
+            Gray = no incidents in dataset
+        </div>
+    </div>
+    """
+
+
+def _add_zip_labels(folium_map: folium.Map, geojson: dict) -> None:
+    labeled_zips: set[str] = set()
+    for feature in geojson["features"]:
+        zip_code = str(feature["properties"].get("ZIPCODE", "")).strip()
+        if not zip_code or zip_code in labeled_zips:
+            continue
+        centroid = _geometry_centroid(feature["geometry"])
+        if centroid is None:
+            continue
+        labeled_zips.add(zip_code)
+        folium.Marker(
+            location=centroid,
+            icon=folium.DivIcon(
+                html=f"""
+                <div style="
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #1f4e79;
+                    text-align: center;
+                    text-shadow: 1px 1px 2px white, -1px -1px 2px white;
+                    width: 48px;
+                ">{zip_code}</div>
+                """,
+                icon_size=(48, 14),
+                icon_anchor=(24, 7),
+            ),
+        ).add_to(folium_map)
 
 
 def create_zipcode_choropleth_map(
@@ -505,32 +601,7 @@ def create_zipcode_choropleth_map(
     ).add_to(folium_map)
 
     if show_zip_labels:
-        labeled_zips: set[str] = set()
-        for feature in enriched_geojson["features"]:
-            zip_code = str(feature["properties"].get("ZIPCODE", "")).strip()
-            if not zip_code or zip_code in labeled_zips:
-                continue
-            centroid = _geometry_centroid(feature["geometry"])
-            if centroid is None:
-                continue
-            labeled_zips.add(zip_code)
-            folium.Marker(
-                location=centroid,
-                icon=folium.DivIcon(
-                    html=f"""
-                    <div style="
-                        font-size: 11px;
-                        font-weight: 700;
-                        color: #1f4e79;
-                        text-align: center;
-                        text-shadow: 1px 1px 2px white, -1px -1px 2px white;
-                        width: 48px;
-                    ">{zip_code}</div>
-                    """,
-                    icon_size=(48, 14),
-                    icon_anchor=(24, 7),
-                ),
-            ).add_to(folium_map)
+        _add_zip_labels(folium_map, enriched_geojson)
 
     folium_map.get_root().html.add_child(folium.Element(_legend_html(vmin, vmax)))
 
@@ -541,6 +612,68 @@ def create_zipcode_choropleth_map(
     return folium_map
 
 
+def create_incidents_by_zipcode_heatmap(
+    df_lmpd: pd.DataFrame | None = None,
+    *,
+    geojson_path: Path | str = DEFAULT_GEOJSON_PATH,
+    output_path: Path | str = DEFAULT_INCIDENTS_HEATMAP_HTML,
+    show_zip_labels: bool = False,
+) -> folium.Map:
+    """Build a Folium map with zip polygons colored by incident count only."""
+    df_lmpd = df_lmpd if df_lmpd is not None else load_lmpd_data()
+    stats = build_zip_incident_stats(df_lmpd)
+
+    geojson_file = ensure_zip_geojson(geojson_path)
+    with geojson_file.open(encoding="utf-8") as handle:
+        geojson = json.load(handle)
+
+    enriched_geojson = _attach_incident_counts_to_geojson(geojson, stats)
+    positive = stats.loc[stats["incidents"] > 0, "incidents"]
+    vmin = float(positive.min()) if not positive.empty else 0.0
+    vmax = float(positive.max()) if not positive.empty else 1.0
+
+    def style_function(feature: dict) -> dict:
+        incidents = int(feature["properties"].get("incidents", 0))
+        fill_color = (
+            _ratio_to_color(float(incidents), vmin, vmax)
+            if incidents > 0
+            else NO_DATA_COLOR
+        )
+        return {
+            "fillColor": fill_color,
+            "color": "#4d4d4d",
+            "weight": 1.2,
+            "fillOpacity": 0.78,
+        }
+
+    folium_map = folium.Map(location=LOUISVILLE_CENTER, zoom_start=10, tiles="CartoDB Positron")
+
+    folium.GeoJson(
+        enriched_geojson,
+        style_function=style_function,
+        tooltip=folium.GeoJsonTooltip(
+            fields=["ZIPCODE", "incidents"],
+            aliases=["Zip code", "Incidents"],
+            localize=True,
+            sticky=False,
+        ),
+    ).add_to(folium_map)
+
+    if show_zip_labels:
+        _add_zip_labels(folium_map, enriched_geojson)
+
+    folium_map.get_root().html.add_child(
+        folium.Element(_incidents_heatmap_legend_html(vmin, vmax))
+    )
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    folium_map.save(str(output))
+    print(f"Saved incidents-by-zipcode heatmap to {output}")
+    return folium_map
+
+
 if __name__ == "__main__":
     create_zipcode_choropleth_map()
+    create_incidents_by_zipcode_heatmap()
     create_dock_utilization_map()
