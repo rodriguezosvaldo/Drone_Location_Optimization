@@ -1,10 +1,15 @@
 import math
+import time
 
-import gurobipy as gp
+import pulp
 
 from src.docks_and_incidents import distance
 
 _TIME_LIMIT_SECONDS = 300
+_ACCEPTABLE_STATUSES = {
+    pulp.LpStatusOptimal,
+    pulp.LpStatusNotSolved,  # time limit / early stop can still yield a feasible solution
+}
 
 
 class MaximizeIncidentsCovered:
@@ -39,156 +44,186 @@ class MaximizeIncidentsCovered:
         docks = self.docks
         incidents = self.incidents
 
-        model = gp.Model("maximize_incidents_covered")
-        model.Params.TimeLimit = _TIME_LIMIT_SECONDS
+        model = pulp.LpProblem("maximize_incidents_covered", pulp.LpMaximize)
 
-        x = model.addVars(docks, vtype=gp.GRB.BINARY, name="x")
-        y = model.addVars(incidents, vtype=gp.GRB.BINARY, name="y")
+        x = {
+            dock: pulp.LpVariable(f"x_{i}", cat=pulp.LpBinary)
+            for i, dock in enumerate(docks)
+        }
+        y = {
+            incident: pulp.LpVariable(f"y_{i}", cat=pulp.LpBinary)
+            for i, incident in enumerate(incidents)
+        }
 
         max_incidents = math.floor(
             (self.percentage_incidents_to_cover / 100) * len(incidents)
         )
-        model.addConstr(gp.quicksum(y[i] for i in incidents) <= max_incidents)
+        model += pulp.lpSum(y[i] for i in incidents) <= max_incidents
 
         for incident in incidents:
             covering_docks = incident_to_docks[incident]
             if covering_docks:
-                model.addConstr(gp.quicksum(x[d] for d in covering_docks) >= y[incident])
+                model += pulp.lpSum(x[d] for d in covering_docks) >= y[incident]
             else:
-                model.addConstr(y[incident] == 0)
+                model += y[incident] == 0
 
         assignable_pairs = [
             (dock, incident)
             for incident in incidents
             for dock in incident_to_docks[incident]
         ]
-        pair_distance = {(dock, incident): distance(dock, incident) for dock, incident in assignable_pairs}
-        z = model.addVars(assignable_pairs, vtype=gp.GRB.BINARY, name="z")
+        pair_distance = {
+            (dock, incident): distance(dock, incident) for dock, incident in assignable_pairs
+        }
+        z = {
+            (dock, incident): pulp.LpVariable(f"z_{i}", cat=pulp.LpBinary)
+            for i, (dock, incident) in enumerate(assignable_pairs)
+        }
 
         for incident in incidents:
-            model.addConstr(
-                gp.quicksum(z[dock, incident] for dock in incident_to_docks[incident]) >= y[incident]
+            model += (
+                pulp.lpSum(z[dock, incident] for dock in incident_to_docks[incident])
+                >= y[incident]
             )
 
         for dock, incident in assignable_pairs:
-            model.addConstr(z[dock, incident] <= x[dock])
-            model.addConstr(z[dock, incident] <= y[incident])
+            model += z[dock, incident] <= x[dock]
+            model += z[dock, incident] <= y[incident]
 
         for dock in docks:
             coverable_incidents = dock_to_incidents[dock]
             if coverable_incidents:
-                model.addConstr(
-                    gp.quicksum(z[dock, incident] for incident in coverable_incidents)
+                model += (
+                    pulp.lpSum(z[dock, incident] for incident in coverable_incidents)
                     <= dock.drone_coverage_capacity * x[dock]
                 )
-                model.addConstr(
-                    x[dock] <= gp.quicksum(z[dock, incident] for incident in coverable_incidents)
+                model += x[dock] <= pulp.lpSum(
+                    z[dock, incident] for incident in coverable_incidents
                 )
             else:
-                model.addConstr(x[dock] == 0)
+                model += x[dock] == 0
 
-        model.addConstr(gp.quicksum(x[dock] for dock in docks) <= self.budget)
+        model += pulp.lpSum(x[dock] for dock in docks) <= self.budget
 
         return model, x, y, z, assignable_pairs, pair_distance
 
-    def _max_coverage_first(self, model, x, y, z, assignable_pairs, pair_distance):
-        docks = self.docks
-        incidents = self.incidents
+    def _max_coverage_objectives(self, x, y, z, assignable_pairs, pair_distance):
+        """Highest priority first: coverage, then fewer docks, then shorter distance."""
+        return [
+            (pulp.lpSum(y[i] for i in self.incidents), pulp.LpMaximize, 1e-6, "maximize_coverage"),
+            (pulp.lpSum(x[d] for d in self.docks), pulp.LpMinimize, 1e-6, "minimize_docks"),
+            (
+                pulp.lpSum(pair_distance[d, i] * z[d, i] for d, i in assignable_pairs),
+                pulp.LpMinimize,
+                1e-6,
+                "minimize_distance",
+            ),
+        ]
 
-        model.setObjectiveN(
-            gp.quicksum(y[i] for i in incidents),
-            index=0,
-            priority=2,
-            abstol=1e-6,
-            reltol=0,
-            name="maximize_coverage",
-        )
-        model.setObjectiveN(
-            -gp.quicksum(x[d] for d in docks),
-            index=1,
-            priority=1,
-            abstol=1e-6,
-            reltol=0,
-            name="minimize_docks",
-        )
-        model.setObjectiveN(
-            -gp.quicksum(pair_distance[d, i] * z[d, i] for d, i in assignable_pairs),
-            index=2,
-            priority=0,
-            name="minimize_distance",
-        )
-        model.ModelSense = gp.GRB.MAXIMIZE
-
-    def _specific_docks_first(self, model, x, y, z, assignable_pairs, pair_distance):
+    def _specific_docks_objectives(self, model, x, y, z, assignable_pairs, pair_distance):
         docks = self.docks
         incidents = self.incidents
         priority_docks = self.priority_docks
 
-        remaining_docks = [dock for dock in docks if dock not in priority_docks]
-        remaining_pairs = [(d, i) for d, i in assignable_pairs if d in remaining_docks]
+        remaining_pairs = [(d, i) for d, i in assignable_pairs if d not in priority_docks]
         specific_pairs = [(d, i) for d, i in assignable_pairs if d in priority_docks]
         priority_pairs_by_incident = {incident: [] for incident in incidents}
         for dock, incident in specific_pairs:
             priority_pairs_by_incident[incident].append((dock, incident))
-        w = model.addVars(incidents, vtype=gp.GRB.BINARY, name="w")
+
+        w = {
+            incident: pulp.LpVariable(f"w_{i}", cat=pulp.LpBinary)
+            for i, incident in enumerate(incidents)
+        }
         for incident in incidents:
             priority_pairs = priority_pairs_by_incident[incident]
             if priority_pairs:
-                model.addConstr(
-                    w[incident] <= gp.quicksum(z[dock, inc] for dock, inc in priority_pairs)
+                model += w[incident] <= pulp.lpSum(
+                    z[dock, inc] for dock, inc in priority_pairs
                 )
             else:
-                model.addConstr(w[incident] == 0)
-            model.addConstr(w[incident] <= y[incident])
+                model += w[incident] == 0
+            model += w[incident] <= y[incident]
 
-        model.setObjectiveN(
-            gp.quicksum(w[i] for i in incidents),
-            index=0,
-            priority=3,
-            abstol=1e-6,
-            reltol=0,
-            name="priority_incident_coverage",
-        )
-        model.setObjectiveN(
-            gp.quicksum(y[i] for i in incidents),
-            index=1,
-            priority=2,
-            abstol=1e-6,
-            reltol=0,
-            name="maximize_coverage",
-        )
-        model.setObjectiveN(
-            -gp.quicksum(x[d] for d in docks),
-            index=2,
-            priority=1,
-            abstol=1e-6,
-            reltol=0,
-            name="minimize_docks",
-        )
-        model.setObjectiveN(
-            -gp.quicksum(pair_distance[d, i] * z[d, i] for d, i in remaining_pairs)
-            - gp.quicksum(pair_distance[d, i] * z[d, i] for d, i in specific_pairs),
-            index=3,
-            priority=0,
-            name="minimize_distance",
-        )
-        model.ModelSense = gp.GRB.MAXIMIZE
+        return [
+            (
+                pulp.lpSum(w[i] for i in incidents),
+                pulp.LpMaximize,
+                1e-6,
+                "priority_incident_coverage",
+            ),
+            (pulp.lpSum(y[i] for i in incidents), pulp.LpMaximize, 1e-6, "maximize_coverage"),
+            (pulp.lpSum(x[d] for d in docks), pulp.LpMinimize, 1e-6, "minimize_docks"),
+            (
+                pulp.lpSum(pair_distance[d, i] * z[d, i] for d, i in remaining_pairs)
+                + pulp.lpSum(pair_distance[d, i] * z[d, i] for d, i in specific_pairs),
+                pulp.LpMinimize,
+                1e-6,
+                "minimize_distance",
+            ),
+        ]
 
     def _set_objectives(self, model, x, y, z, assignable_pairs, pair_distance):
         if self.priority_docks:
-            self._specific_docks_first(model, x, y, z, assignable_pairs, pair_distance)
-        else:
-            self._max_coverage_first(model, x, y, z, assignable_pairs, pair_distance)
+            return self._specific_docks_objectives(
+                model, x, y, z, assignable_pairs, pair_distance
+            )
+        return self._max_coverage_objectives(x, y, z, assignable_pairs, pair_distance)
 
-    def _extract_results(self, model, x, y, z, dock_to_incidents):
-        if model.Status not in (gp.GRB.OPTIMAL, gp.GRB.TIME_LIMIT, gp.GRB.SUBOPTIMAL):
-            print(f"Coverage optimization ended with status {model.Status}")
-            return None
+    def _solve_lexicographic(self, model, objectives):
+        """Solve hierarchical objectives sequentially (open-source equivalent of setObjectiveN)."""
+        deadline = time.time() + _TIME_LIMIT_SECONDS
+        last_status = None
 
-        selected_docks = [dock for dock in self.docks if x[dock].X > 0.5]
-        incidents_covered = [incident for incident in self.incidents if y[incident].X > 0.5]
+        for stage, (expr, sense, abstol, name) in enumerate(objectives):
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+
+            model.sense = sense
+            model.objective = expr
+
+            status = model.solve(
+                pulp.HiGHS(msg=False, timeLimit=max(remaining, 1.0))
+            )
+            last_status = status
+
+            if pulp.LpStatus[status] == "Infeasible":
+                print(f"Coverage optimization ended with status {pulp.LpStatus[status]}")
+                return None
+
+            obj_value = pulp.value(expr)
+            if obj_value is None:
+                print(f"Coverage optimization ended with status {pulp.LpStatus[status]}")
+                return None
+
+            # Freeze this priority level before optimizing lower-priority goals.
+            if stage < len(objectives) - 1:
+                if sense == pulp.LpMaximize:
+                    model += expr >= obj_value - abstol, f"_fix_{name}"
+                else:
+                    model += expr <= obj_value + abstol, f"_fix_{name}"
+
+        return last_status
+
+    def _extract_results(self, status, x, y, z, dock_to_incidents):
+        if status is None or status not in _ACCEPTABLE_STATUSES:
+            # Still accept a feasible incumbent if variable values are present.
+            sample = next(iter(x.values()), None)
+            if sample is None or pulp.value(sample) is None:
+                print(f"Coverage optimization ended with status {pulp.LpStatus.get(status, status)}")
+                return None
+
+        selected_docks = [dock for dock in self.docks if (pulp.value(x[dock]) or 0) > 0.5]
+        incidents_covered = [
+            incident for incident in self.incidents if (pulp.value(y[incident]) or 0) > 0.5
+        ]
         dock_assignments = {
-            dock: [incident for incident in dock_to_incidents[dock] if z[dock, incident].X > 0.5]
+            dock: [
+                incident
+                for incident in dock_to_incidents[dock]
+                if (pulp.value(z[dock, incident]) or 0) > 0.5
+            ]
             for dock in selected_docks
         }
 
@@ -210,6 +245,6 @@ class MaximizeIncidentsCovered:
             incident_to_docks,
             dock_to_incidents,
         )
-        self._set_objectives(model, x, y, z, assignable_pairs, pair_distance)
-        model.optimize()
-        return self._extract_results(model, x, y, z, dock_to_incidents)
+        objectives = self._set_objectives(model, x, y, z, assignable_pairs, pair_distance)
+        status = self._solve_lexicographic(model, objectives)
+        return self._extract_results(status, x, y, z, dock_to_incidents)

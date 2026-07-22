@@ -5,7 +5,8 @@ folium
 matplotlib
 plotly
 fpdf2
-gurobipy
+pulp
+highspy
 fastapi
 uvicorn[standard]
 python-multipart

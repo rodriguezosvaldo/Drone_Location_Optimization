@@ -23,7 +23,8 @@ Before you start, make sure you have:
 
 - **Python 3.10+** (tested with 3.13)
 - **Git**
-- An active **Gurobi license** (academic or commercial) — required to solve the optimization model
+
+The optimization model is solved with **HiGHS** (via PuLP), an open-source MIP solver. No commercial license is required.
 
 ---
 
@@ -56,11 +57,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure Gurobi
-
-Install and activate your Gurobi license according to [Gurobi’s documentation](https://www.gurobi.com/documentation/). Without a valid license, the web app can load data and show maps, but optimization runs will fail.
-
-### 4. Start the web application
+### 3. Start the web application
 
 From the project root (with the virtual environment activated):
 
@@ -138,7 +135,7 @@ Generated maps, charts, and Excel tables appear under **Generated files**. Downl
 
 - Keep the terminal running while you use the browser; closing it stops the app.
 - Re-activate the virtual environment each new terminal session before running `python run_web.py`.
-- If optimization fails, confirm that Gurobi is licensed and that your Excel columns match the table above.
+- If optimization fails, confirm that dependencies installed correctly (`pulp`, `highspy`) and that your Excel columns match the table above.
 - Hold the scroll wheel (or Space) and drag to move the map canvas.
 
 ---
