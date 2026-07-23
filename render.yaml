@@ -2,7 +2,7 @@
 # Dashboard: New → Blueprint → connect this repo
 services:
   - type: web
-    name: metrosafe-drone-optimization
+    name: optimization
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
