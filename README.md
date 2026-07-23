@@ -71,6 +71,34 @@ To stop the server, press `Ctrl+C` in the terminal.
 
 ---
 
+## Deploy on Render (free)
+
+The repo includes a [`render.yaml`](render.yaml) Blueprint so you can host the same web app publicly.
+
+1. Push this repository to GitHub (if it is not there already).
+2. In [Render](https://render.com): **New → Blueprint** → select the repo.
+3. Confirm the service (`metrosafe-drone-optimization`, free plan) and create it.
+4. When the deploy finishes, open the URL Render assigns (e.g. `https://metrosafe-drone-optimization.onrender.com`).
+
+**Manual setup** (without Blueprint): **New → Web Service** → connect the repo, then use:
+
+| Setting | Value |
+| --- | --- |
+| Runtime | Python 3 |
+| Build command | `pip install -r requirements.txt` |
+| Start command | `python run_web.py` |
+| Health check path | `/api/health` |
+
+Optional env vars: `PYTHON_VERSION=3.12.8`, `MPLBACKEND=Agg`.
+
+**Notes for the free tier**
+
+- The service **spins down** after ~15 minutes idle; the first request after that can take ~30–60 seconds (cold start).
+- Disk is **ephemeral**: uploaded Excel files and generated outputs are lost on redeploy or restart. Re-upload data after waking the service if needed.
+- Heavy optimizations can take minutes and use noticeable memory; keep budgets/datasets reasonable on the free instance.
+
+---
+
 ## Using the web interface
 
 The app has four sections in the left sidebar: **Data**, **Optimization**, **Compare**, and **Results**.
