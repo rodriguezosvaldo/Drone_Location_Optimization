@@ -452,6 +452,11 @@ input[type="number"] {
   flex-shrink: 0;
 }
 
+.compare-scenario-card[data-scenario="s2"] {
+  background: #1e2838;
+  border-color: #334155;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;

@@ -29,7 +29,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="MetroSafe Drone Optimization",
+    title="Drone Dock Optimization",
     description="Web interface for dock placement optimization",
     version="1.0.0",
     lifespan=lifespan,

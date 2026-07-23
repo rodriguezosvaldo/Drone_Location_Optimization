@@ -5,8 +5,8 @@ Expected columns (header row):
   - budget
   - Coverage (%)
   - Total docks opened
-  - MetroSafe docks opened
-  - JCPS docks opened
+  - Priority docks opened (or legacy: MetroSafe docks opened)
+  - Other docks opened (or legacy: JCPS docks opened)
 
 X-axis: docks opened.
 Y-axis: percentage of incidents covered.
@@ -43,8 +43,22 @@ COLUMN_ALIASES = {
     "budget": ["budget", "k", "budget (docks)", "docks budget"],
     "coverage": ["coverage (%)", "coverage", "coverage_pct", "covered", "covered (%)"],
     "total": ["total docks opened", "total", "total_docks_opened"],
-    "metrosafe": ["metrosafe docks opened", "metrosafe", "metrosafe_docks_opened"],
-    "jcps": ["jcps docks opened", "jcps", "jcps_docks_opened"],
+    "metrosafe": [
+        "priority docks opened",
+        "priority",
+        "priority_docks_opened",
+        "metrosafe docks opened",
+        "metrosafe",
+        "metrosafe_docks_opened",
+    ],
+    "jcps": [
+        "other docks opened",
+        "other",
+        "other_docks_opened",
+        "jcps docks opened",
+        "jcps",
+        "jcps_docks_opened",
+    ],
 }
 
 
@@ -326,7 +340,7 @@ def plot_docks_opened_comparison(
     Line comparison chart for two side-by-side Excel tables.
 
     - Column A table  -> "Open docks freely"
-    - Column G table  -> "Open MetroSafe docks first"
+    - Column G table  -> "Open priority docks first"
     """
     fig, ax = plt.subplots(figsize=FIG_SIZE)
     overlap_points = _overlapping_xy_points(free_df, preference_df)
@@ -345,7 +359,7 @@ def plot_docks_opened_comparison(
         (
             preference_df,
             COMPARISON_PREF_COLOR,
-            "Open MetroSafe docks first",
+            "Open priority docks first",
             9,
             (0, -14),
             "center",
@@ -407,7 +421,7 @@ def plot_docks_opened_comparison(
             linewidth=3.0,
             marker="o",
             markersize=9,
-            label="Open MetroSafe docks first",
+            label="Open priority docks first",
         ),
     ]
     ax.legend(handles=legend_handles, loc="lower right", framealpha=0.95)

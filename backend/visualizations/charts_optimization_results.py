@@ -19,9 +19,9 @@ COMPARISON_FREE_COLOR = "#1a7f37"
 COMPARISON_PREF_COLOR = "#ff7f0e"
 SCENARIO_LABELS = {
     "no_fixed": "No fixed locations",
-    "fixed_metrosafe": "8 MetroSafe docks fixed",
+    "fixed_metrosafe": "Fixed priority docks",
     "maximize_coverage": "Open docks freely",
-    "priority_docks": "Open MetroSafe docks first",
+    "priority_docks": "Open priority docks first",
 }
 
 

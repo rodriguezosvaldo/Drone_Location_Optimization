@@ -1,4 +1,4 @@
-"""Launch the MetroSafe web interface."""
+"""Launch the drone dock optimization web interface."""
 
 import os
 

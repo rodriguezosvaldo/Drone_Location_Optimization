@@ -5,8 +5,8 @@ Expected columns (header row):
   - Response time (min)
   - Coverage (%)
   - Total docks opened
-  - MetroSafe docks opened
-  - JCPS docks opened
+  - Priority docks opened (or legacy: MetroSafe docks opened)
+  - Other docks opened (or legacy: JCPS docks opened)
 
 If a second table starts at column G, also generate a comparison line chart
 (no bars) for both scenarios.
@@ -45,8 +45,22 @@ COLUMN_ALIASES = {
     "response_time": ["response time (min)", "response time", "response_time"],
     "coverage": ["coverage (%)", "coverage", "coverage_pct", "covered", "covered (%)"],
     "total": ["total docks opened", "total", "total_docks_opened"],
-    "metrosafe": ["metrosafe docks opened", "metrosafe", "metrosafe_docks_opened"],
-    "jcps": ["jcps docks opened", "jcps", "jcps_docks_opened"],
+    "metrosafe": [
+        "priority docks opened",
+        "priority",
+        "priority_docks_opened",
+        "metrosafe docks opened",
+        "metrosafe",
+        "metrosafe_docks_opened",
+    ],
+    "jcps": [
+        "other docks opened",
+        "other",
+        "other_docks_opened",
+        "jcps docks opened",
+        "jcps",
+        "jcps_docks_opened",
+    ],
 }
 
 
@@ -245,7 +259,7 @@ def plot_docks_opened_vs_response_time(
         color=METROSAFE_COLOR,
         edgecolor="white",
         linewidth=0.8,
-        label="MetroSafe docks opened",
+        label="Priority docks opened",
         zorder=2,
     )
     ax.bar(
@@ -256,7 +270,7 @@ def plot_docks_opened_vs_response_time(
         color=JCPS_COLOR,
         edgecolor="white",
         linewidth=0.8,
-        label="JCPS docks opened",
+        label="Other docks opened",
         zorder=2,
     )
     ax.plot(
@@ -291,8 +305,8 @@ def plot_docks_opened_vs_response_time(
             markersize=7,
             label="Total docks opened",
         ),
-        Patch(facecolor=METROSAFE_COLOR, edgecolor="white", label="MetroSafe docks opened"),
-        Patch(facecolor=JCPS_COLOR, edgecolor="white", label="JCPS docks opened"),
+        Patch(facecolor=METROSAFE_COLOR, edgecolor="white", label="Priority docks opened"),
+        Patch(facecolor=JCPS_COLOR, edgecolor="white", label="Other docks opened"),
         Line2D(
             [0],
             [0],
@@ -322,13 +336,13 @@ def plot_docks_opened_comparison(
     Line-only comparison chart for two side-by-side Excel tables.
 
     - Column A table  -> "Open docks freely"
-    - Column G table  -> "Open MetroSafe docks with preference"
+    - Column G table  -> "Open priority docks first"
     """
     fig, ax = plt.subplots(figsize=FIG_SIZE)
 
     series = [
         (free_df, COMPARISON_FREE_COLOR, "Open docks freely", 7),
-        (preference_df, COMPARISON_PREF_COLOR, "Open MetroSafe docks with preference", 9),
+        (preference_df, COMPARISON_PREF_COLOR, "Open priority docks first", 9),
     ]
 
     for df, color, label, markersize in series:
@@ -377,7 +391,7 @@ def plot_docks_opened_comparison(
             linewidth=3.0,
             marker="o",
             markersize=9,
-            label="Open MetroSafe docks with preference",
+            label="Open priority docks first",
         ),
     ]
     ax.legend(handles=legend_handles, loc="upper right", framealpha=0.95)
