@@ -1,5 +1,9 @@
 # Drone Location Optimization
 
+## Branch focus
+
+This branch (`web-interface`) is the full-featured web application: upload data, generate maps, run optimizations, compare scenarios, and download results, solved with **Gurobi**. For a version that replaces Gurobi with an open-source solver (PuLP + HiGHS) and is deployed publicly on Render, see [`newsolver`](https://github.com/rodriguezosvaldo/MetroSafe-UofL_Drone_Optimization/tree/newsolver). The research/analysis baseline without a web interface lives on [`master`](https://github.com/rodriguezosvaldo/MetroSafe-UofL_Drone_Optimization/tree/master).
+
 ## Introduction
 
 This software helps decide where to place drone docking stations so that emergency (or other time-sensitive) demand is covered as well as possible under a limited budget.
