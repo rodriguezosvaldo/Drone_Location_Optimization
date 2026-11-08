@@ -1,5 +1,9 @@
 # Data-Driven Optimization of Drone Deployment for Emergency Response 
 
+## Branch focus
+
+This branch (`master`) is the project's research and analysis baseline: data preparation, geocoding, exploratory charts, and the first optimization model (Gurobi). It has no web interface — that is built out in [`web-interface`](https://github.com/rodriguezosvaldo/MetroSafe-UofL_Drone_Optimization/tree/web-interface) and its open-source-solver/Render deployment in [`newsolver`](https://github.com/rodriguezosvaldo/MetroSafe-UofL_Drone_Optimization/tree/newsolver).
+
 ## Project Overview
 Unmanned aerial systems (UAS), or drones, are increasingly used by public safety agencies to improve situational awareness and reduce emergency response times. Many U.S. cities have adopted “Drone as First Responder” programs, where drones provide real-time visual information to support police, fire, and EMS operations.
 
