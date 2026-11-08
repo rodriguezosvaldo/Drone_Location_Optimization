@@ -16,6 +16,10 @@ router = APIRouter(prefix="/api/data", tags=["data"])
 
 class AnalyzeAreaRequest(BaseModel):
     area: str = Field(..., pattern="^(full|specific)$")
+    peak_day_only: bool = Field(
+        False,
+        description="Use only incidents from the busiest day in the selected area",
+    )
 
 
 def _missing_upload_labels() -> list[str]:
@@ -24,17 +28,15 @@ def _missing_upload_labels() -> list[str]:
         missing.append("incidents")
     if not UPLOADED_DOCKS_PATH.exists():
         missing.append("docks")
-    if not UPLOADED_PRIORITY_DOCKS_PATH.exists():
-        missing.append("priority docks")
     return missing
 
 
-def _require_all_uploaded_files() -> None:
+def _require_required_uploaded_files() -> None:
     missing = _missing_upload_labels()
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Upload all three files before continuing. Missing: {', '.join(missing)}.",
+            detail=f"Upload incidents and docks before continuing. Missing: {', '.join(missing)}.",
         )
 
 
@@ -92,20 +94,30 @@ async def upload_priority_docks(file: UploadFile = File(...)):
 async def upload_all(
     incidents: UploadFile = File(...),
     docks: UploadFile = File(...),
-    priority_docks: UploadFile = File(...),
+    priority_docks: UploadFile | None = File(None),
 ):
     try:
         await _save_upload(incidents, UPLOADED_INCIDENTS_PATH)
         await _save_upload(docks, UPLOADED_DOCKS_PATH)
-        await _save_upload(priority_docks, UPLOADED_PRIORITY_DOCKS_PATH)
+
+        has_priority = bool(priority_docks and priority_docks.filename)
+        if has_priority:
+            await _save_upload(priority_docks, UPLOADED_PRIORITY_DOCKS_PATH)
+        elif UPLOADED_PRIORITY_DOCKS_PATH.exists():
+            UPLOADED_PRIORITY_DOCKS_PATH.unlink()
 
         result = optimization_service.load_data(
             UPLOADED_DOCKS_PATH,
             UPLOADED_INCIDENTS_PATH,
-            UPLOADED_PRIORITY_DOCKS_PATH,
+            UPLOADED_PRIORITY_DOCKS_PATH if has_priority else None,
+        )
+        message = (
+            "Uploaded and loaded incidents, docks, and priority docks."
+            if has_priority
+            else "Uploaded and loaded incidents and docks."
         )
         return {
-            "message": "Uploaded and loaded incidents, docks, and priority docks.",
+            "message": message,
             **result,
         }
     except FileNotFoundError as exc:
@@ -119,11 +131,16 @@ async def upload_all(
 @router.post("/load")
 def reload_uploaded_data():
     try:
-        _require_all_uploaded_files()
+        _require_required_uploaded_files()
+        priority_path = (
+            UPLOADED_PRIORITY_DOCKS_PATH
+            if UPLOADED_PRIORITY_DOCKS_PATH.exists()
+            else None
+        )
         result = optimization_service.load_data(
             UPLOADED_DOCKS_PATH,
             UPLOADED_INCIDENTS_PATH,
-            UPLOADED_PRIORITY_DOCKS_PATH,
+            priority_path,
         )
         return {"message": "Uploaded data reloaded successfully.", **result}
     except HTTPException:
@@ -139,9 +156,10 @@ def reload_uploaded_data():
 @router.post("/analyze")
 def analyze_area(payload: AnalyzeAreaRequest):
     try:
-        result = optimization_service.analyze_area(payload.area)
+        result = optimization_service.analyze_area(payload.area, payload.peak_day_only)
         label = "entire area" if payload.area == "full" else "priority area"
-        return {"message": f"Map generated for the {label}.", **result}
+        day_label = "peak day" if payload.peak_day_only else "all incidents"
+        return {"message": f"Map generated for the {label} ({day_label}).", **result}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
