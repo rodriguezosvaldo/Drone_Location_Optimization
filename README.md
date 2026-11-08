@@ -1,5 +1,9 @@
 # Drone Location Optimization
 
+## Branch focus
+
+This branch (`newsolver`) replaces the commercial **Gurobi** solver used in earlier branches with an **open-source stack (PuLP + HiGHS)**, so the optimization model runs without a license, and adds the configuration to **deploy the web app publicly on Render**. It builds on the full-featured web app from [`web-interface`](https://github.com/rodriguezosvaldo/MetroSafe-UofL_Drone_Optimization/tree/web-interface).
+
 ## Introduction
 
 This software helps decide where to place drone docking stations so that emergency (or other time-sensitive) demand is covered as well as possible under a limited budget.
@@ -14,6 +18,14 @@ It is useful for projects that need to:
 Typical use cases include public-safety “drone as first responder” programs, campus or industrial emergency coverage, and any similar facility-location problem where demand points and candidate sites are known by latitude/longitude.
 
 The main way to use the tool is the **web interface**. The steps below take you from cloning the repository to running an optimization on your own machine.
+
+---
+
+## Live demo
+
+The app is deployed on Render's free tier: **[https://optimization-ho7u.onrender.com](https://optimization-ho7u.onrender.com)**
+
+Since Render's free plan spins the service down when idle, the first load after a period of inactivity can take **about 2–3 minutes** to wake up and respond. Once it's loaded, the app runs normally until it goes idle again.
 
 ---
 
@@ -93,7 +105,7 @@ Optional env vars: `PYTHON_VERSION=3.12.8`, `MPLBACKEND=Agg`.
 
 **Notes for the free tier**
 
-- The service **spins down** after ~15 minutes idle; the first request after that can take ~30–60 seconds (cold start).
+- The service **spins down** after ~15 minutes idle; the first request after that can take ~2–3 minutes (cold start).
 - Disk is **ephemeral**: uploaded Excel files and generated outputs are lost on redeploy or restart. Re-upload data after waking the service if needed.
 - Heavy optimizations can take minutes and use noticeable memory; keep budgets/datasets reasonable on the free instance.
 
